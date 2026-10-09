@@ -105,6 +105,9 @@ class DistanceVectorRouter(Router):
             best_cost = self.infinity
             best_nxt = None
             for neighbor, link_cost in self.link_costs[node].items():
+                # Do not use a ground station as transit unless it IS the destination
+                if self.engine.is_ground_station(neighbor) and dst != neighbor:
+                    continue
                 if neighbor in self.neighbor_dvs[node] and dst in self.neighbor_dvs[node][neighbor]:
                     cost = link_cost + self.neighbor_dvs[node][neighbor][dst]
                     if cost < best_cost:
@@ -154,5 +157,9 @@ class DistanceVectorRouter(Router):
             self.engine.schedule(msg_delay, self._receive_update, neighbor, node, update_vector)
 
     def _receive_update(self, node, neighbor, update_vector):
+        # Check if the link is still up at delivery time
+        if not self.engine.link_is_up(neighbor, node, self.engine.current_time):
+            self._dropped_message_count += 1
+            return
         self.neighbor_dvs[node][neighbor] = update_vector
         self._recompute_dv(node)
