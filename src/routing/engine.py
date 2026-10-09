@@ -157,8 +157,17 @@ class RoutingEngine:
                 raise KeyError("Missing propagation delay attribute")
             for r in self.routers:
                 r.handle_link_up(u, v, delay, 0)
-        # Process any immediate scheduled events (e.g., SPF runs, DV updates)
+        # Drain in-flight boot messages (propagation+processing delayed) while
+        # boot_mode=True. Cap at boot_convergence_s to avoid consuming periodic updates.
+        import math
         self.run_until(0)
+        boot_cap = self.config.get('routing', {}).get('boot_convergence_s', 10.0)
+        while self._queue:
+            next_t = self._queue[0][0]
+            if next_t > boot_cap:
+                break
+            self.run_until(next_t + 1e-12)
+        self.boot_mode = False
 
     def link_delay(self, u, v, t):
         """Return the propagation delay (in seconds) of link (u, v) in the

@@ -11,6 +11,7 @@ class DistanceVectorRouter(Router):
         self.zero_delay = config['routing'].get('zero_delay', False)
         self.bytes_per_dv_header = config['routing'].get('bytes_per_dv_header', 24)
         self.bytes_per_dv_entry = config['routing'].get('bytes_per_dv_entry', 8)
+        self.poison_reverse = config['routing'].get('dv_poison_reverse', True)
         self.random = random.Random(config['simulation'].get('random_seed', 42))
         self.reset()
 
@@ -144,7 +145,7 @@ class DistanceVectorRouter(Router):
                 # Ground stations never relay others' routes
                 if is_gs and dst != node:
                     continue
-                if nxt == neighbor and dst != node:
+                if self.poison_reverse and nxt == neighbor and dst != node:
                     update_vector[dst] = self.infinity  # poison reverse
                 else:
                     update_vector[dst] = cost
