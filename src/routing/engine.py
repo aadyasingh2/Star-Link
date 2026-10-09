@@ -158,12 +158,41 @@ class RoutingEngine:
         # Process any immediate scheduled events (e.g., SPF runs, DV updates)
         self.run_until(0)
 
-    def link_is_up(self, u, v, t):
-        """Return True if link (u, v) exists in snapshot at time t.
-        The topology is undirected, so (u, v) or (v, u) is accepted.
+    def link_delay(self, u, v, t):
+        """Return the propagation delay (in seconds) of link (u, v) in the
+        snapshot at ``floor(t)``, or ``None`` if the link does not exist.
+        The topology is undirected so (u, v) or (v, u) is checked.
         """
-        snapshot = self.topology_series.get_snapshot(t)
-        return snapshot.has_edge(u, v) or snapshot.has_edge(v, u)
+        import math
+        snapshot = self.topology_series.get_snapshot(int(math.floor(t)))
+        for a, b in [(u, v), (v, u)]:
+            if snapshot.has_edge(a, b):
+                d = snapshot[a][b]
+                if "propagation_delay_s" in d:
+                    return d["propagation_delay_s"]
+                elif "propagation_delay_ms" in d:
+                    return d["propagation_delay_ms"] / 1000.0
+                else:
+                    raise KeyError("Missing propagation delay attribute")
+        return None
+
+    def link_is_up(self, u, v, t):
+        """Return True if link (u, v) exists in snapshot at time t."""
+        return self.link_delay(u, v, t) is not None
+
+    def is_ground_station(self, node):
+        """Return True if *node* is a ground station.
+        Uses the node's ``type`` attribute set by the topology builder.
+        Falls back to checking the ``gs_`` prefix if the snapshot has no
+        node attributes (e.g. in unit tests with plain graphs).
+        """
+        snapshot = self.topology_series.get_snapshot(0)
+        if snapshot.has_node(node):
+            ntype = snapshot.nodes[node].get('type', '')
+            if ntype:
+                return ntype == 'ground_station'
+        # Fallback: prefix convention used by topology.py
+        return str(node).startswith('gs_')
 
     def step_to(self, target_time):
         """Step the engine from the current time up to ``target_time``.
