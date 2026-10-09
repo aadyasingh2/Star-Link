@@ -42,6 +42,13 @@ class TopologySeries:
         self.gs_info = config['ground_stations']
         self.gs_ecef = self._compute_gs_ecef()
         
+        # Validate that intra-plane distance does not exceed max ISL range
+        a = EARTH_RADIUS_KM + self.constellation.altitude_km
+        S = self.constellation.sats_per_plane
+        intra_dist = 2 * a * np.sin(np.pi / S)
+        if intra_dist > self.isl_max_range:
+            raise ValueError(f"Config error: Intra-plane distance ({intra_dist:.2f} km) exceeds isl_max_range_km ({self.isl_max_range} km). Increase sats_per_plane or isl_max_range_km.")
+            
         # Precompute logical ISL edges (+Grid pattern)
         self.logical_isl = self._build_logical_isl()
         

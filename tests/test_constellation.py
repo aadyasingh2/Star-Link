@@ -1,6 +1,7 @@
 import pytest
 import yaml
 import numpy as np
+import networkx as nx
 import os
 import sys
 
@@ -89,6 +90,36 @@ def test_ground_station_visibility(config):
         if len(list(g0.neighbors(gs))) > 0:
             has_sat += 1
     assert has_sat > 0
+
+def test_intra_plane_distance_below_max(config):
+    constellation = Constellation(config)
+    ts = TopologySeries(config, constellation)
+    g = ts.get_snapshot(0)
+    for u, v, d in g.edges(data=True):
+        if d['link_type'] == 'intra':
+            assert d['distance_km'] <= config['constellation']['isl_max_range_km']
+
+def test_full_graph_connected_null_cutoff(config):
+    config['constellation']['isl_inter_plane_max_lat_deg'] = None
+    constellation = Constellation(config)
+    ts = TopologySeries(config, constellation)
+    for t in [0, 1000, 2000, 3000]:
+        g = ts.get_snapshot(t)
+        sat_nodes = [n for n in g.nodes() if g.nodes[n]['type'] == 'satellite']
+        sat_g = g.subgraph(sat_nodes)
+        assert nx.is_connected(sat_g), f"Satellite graph disconnected at t={t}"
+
+def test_continuous_ground_station_visibility(config):
+    constellation = Constellation(config)
+    ts = TopologySeries(config, constellation)
+    
+    # Check across multiple times
+    for t in [0, 500, 1000, 1500, 2000]:
+        g = ts.get_snapshot(t)
+        gs_nodes = [n for n in g.nodes() if g.nodes[n]['type'] == 'ground_station']
+        for gs in gs_nodes:
+            sats_in_view = [v for v in g.neighbors(gs) if g.nodes[v]['type'] == 'satellite']
+            assert len(sats_in_view) > 0, f"{gs} has no satellites in view at t={t}"
 
 def test_no_link_crosses_seam(config):
     constellation = Constellation(config)

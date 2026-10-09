@@ -1,6 +1,6 @@
 constellation:
   planes: 24
-  sats_per_plane: 12
+  sats_per_plane: 22
   phasing: 1
   altitude_km: 550
   inclination_deg: 53

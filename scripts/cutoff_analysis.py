@@ -14,7 +14,7 @@ def analyze_cutoff(base_config, cutoff):
     constellation = Constellation(config)
     ts = TopologySeries(config, constellation)
     
-    dt = config['simulation']['timestep_s']
+    dt = 10.0 # Override for analysis specifically
     duration = config['simulation']['duration_s']
     
     t = 0.0
@@ -65,20 +65,28 @@ def analyze_cutoff(base_config, cutoff):
                 
         t += dt
         
+    minutes_simulated = duration / 60.0
+    churn_per_min = (total_isl_appear + total_isl_disappear) / minutes_simulated
+    
     print(f"\n=== Cutoff: {cutoff if cutoff is not None else 'null'} ===")
-    print(f"Total ISL Churn over {duration}s: {total_isl_appear} appeared, {total_isl_disappear} disappeared")
+    print(f"ISL Churn: {churn_per_min:.2f} edge events per minute ({total_isl_appear} app, {total_isl_disappear} dis over {duration}s)")
     print(f"Satellites Graph Connected Fraction: {connected_steps / total_steps:.2%}")
     for p in pairs:
         exist_frac = path_exists[p] / total_steps
-        avg_delay = sum(path_delays[p]) / len(path_delays[p]) if path_delays[p] else float('inf')
-        print(f"Path {p[0].split('_')[1]} -> {p[1].split('_')[1]}: Exists {exist_frac:.2%}, Mean Shortest Delay: {avg_delay:.2f} ms")
+        if path_delays[p]:
+            avg_d = sum(path_delays[p]) / len(path_delays[p])
+            min_d = min(path_delays[p])
+            max_d = max(path_delays[p])
+            print(f"Path {p[0].split('_')[1]} -> {p[1].split('_')[1]}: Exists {exist_frac:.2%}, Delay ms (Mean: {avg_d:.2f}, Min: {min_d:.2f}, Max: {max_d:.2f})")
+        else:
+            print(f"Path {p[0].split('_')[1]} -> {p[1].split('_')[1]}: Exists 0.00%, Delay ms (Mean: inf, Min: inf, Max: inf)")
 
 def main():
     with open(os.path.join(os.path.dirname(__file__), "..", "config.yaml"), "r") as f:
         base_config = yaml.safe_load(f)
         
-    print("Running Cutoff Analysis...")
-    for cutoff in [None, 50, 45, 40]:
+    print("Running Cutoff Analysis (dt=10s)...")
+    for cutoff in [None, 55, 50, 45, 40]:
         analyze_cutoff(base_config, cutoff)
 
 if __name__ == "__main__":
