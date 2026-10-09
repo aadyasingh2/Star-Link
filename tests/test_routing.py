@@ -112,3 +112,4 @@ def test_boot_messages(config):
     engine.drain_queue_until(5.0)
     assert dvr.boot_message_count > 0
     assert dvr.control_message_count == 0
+    assert dvr.compute_route('A', 'B', 5.0) == ['A', 'B']
