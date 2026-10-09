@@ -19,6 +19,7 @@ class RoutingEngine:
         self._queue = []  # (event_time, seq_id, func, args, timer_id)
         self._counter = itertools.count()
         self._cancelled = set()
+        self.boot_mode = False
         # Attach engine to each router
         for r in self.routers:
             r.attach_engine(self)
@@ -145,6 +146,7 @@ class RoutingEngine:
         """Load the initial topology (snapshot at time 0) into routers.
         This ensures routers have a complete view before any events.
         """
+        self.boot_mode = True
         snapshot = self.topology_series.get_snapshot(0)
         for u, v, d in snapshot.edges(data=True):
             if "propagation_delay_s" in d:
@@ -196,9 +198,10 @@ class RoutingEngine:
 
     def step_to(self, target_time):
         """Step the engine from the current time up to ``target_time``.
-        Generates link events for each integer snapshot and processes sub‑second
+        Generates link events for each integer snapshot and processes sub-second
         timers.
         """
+        self.boot_mode = False
         import math
         start_int = int(math.floor(self.current_time))
         end_int = int(math.floor(target_time))

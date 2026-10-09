@@ -155,7 +155,7 @@ class DistanceVectorRouter(Router):
                 msg_delay = d + self.processing_delay_s
             # Count message and bytes (boot messages counted separately)
             msg_bytes = self.bytes_per_dv_header + self.bytes_per_dv_entry * len(update_vector)
-            if self.engine.current_time <= 0:
+            if self.engine.boot_mode:
                 self._boot_message_count += 1
             else:
                 self._control_message_count += 1

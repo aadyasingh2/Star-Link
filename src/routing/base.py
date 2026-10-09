@@ -20,8 +20,16 @@ class Router(ABC):
     def control_bytes_count(self):
         return self._control_bytes_count
 
+    @property
+    def boot_message_count(self):
+        return getattr(self, '_boot_message_count', 0)
+
+    @property
+    def dropped_message_count(self):
+        return getattr(self, '_dropped_message_count', 0)
+
     def attach_engine(self, engine):
-        """Engine assigns a back‑reference for scheduling events."""
+        """Engine assigns a back-reference for scheduling events."""
         self._engine = engine
         # expose public attribute for compatibility
         self.engine = engine

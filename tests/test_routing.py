@@ -100,3 +100,15 @@ def test_stale_route_window(config):
     
     engine.step_to(16.0) 
     assert lsr.compute_route('A', 'B', 16.0) is None
+
+def test_boot_messages(config):
+    g1 = nx.Graph()
+    g1.add_edge('A', 'B', propagation_delay_ms=1000, available=True)
+    ts = MockTopologySeries({0.0: g1})
+    engine = RoutingEngine(config, ts)
+    dvr = DistanceVectorRouter(config)
+    engine.add_router('dvr', dvr)
+    engine.initialize()
+    engine.drain_queue_until(5.0)
+    assert dvr.boot_message_count > 0
+    assert dvr.control_message_count == 0
