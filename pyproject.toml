@@ -15,7 +15,8 @@ dependencies = [
     "pandas",
     "matplotlib",
     "simpy",
-    "pytest"
+    "pytest",
+    "pyyaml"
 ]
 
 [tool.setuptools.packages.find]
