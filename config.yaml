@@ -1,0 +1,42 @@
+constellation:
+  planes: 24
+  sats_per_plane: 12
+  phasing: 1
+  altitude_km: 550
+  inclination_deg: 53
+  isl_max_range_km: 3000
+  minimum_elevation_deg: 25
+
+simulation:
+  timestep_s: 1.0
+  duration_s: 3600.0
+  random_seed: 42
+
+network:
+  isl_rate_gbps: 10
+  ground_link_rate_gbps: 1
+  queue_size_packets: 1000
+
+ground_stations:
+  - name: "Chennai"
+    lat: 13.0827
+    lon: 80.2707
+  - name: "London"
+    lat: 51.5074
+    lon: -0.1278
+  - name: "New York"
+    lat: 40.7128
+    lon: -74.0060
+  - name: "Tokyo"
+    lat: 35.6762
+    lon: 139.6503
+  - name: "Sydney"
+    lat: -33.8688
+    lon: 151.2093
+
+sapr:
+  look_ahead_window_s: 300
+  alpha: 0.5
+  guard_time_s: 5.0
+  hysteresis_margin_ms: 10.0
+  latency_bound_multiplier: 1.2

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sapr-simulator"
+version = "0.1.0"
+description = "Stability-Aware Predictive Routing for LEO Satellite Constellations"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "skyfield",
+    "networkx",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "simpy",
+    "pytest"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
