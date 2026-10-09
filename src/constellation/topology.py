@@ -99,6 +99,10 @@ class TopologySeries:
             
         pos = self.constellation.get_ecef_positions(t)
         
+        # Compute absolute latitude in degrees
+        norms = np.linalg.norm(pos, axis=1)
+        abs_lats = np.abs(np.degrees(np.arcsin(np.clip(pos[:, 2] / norms, -1.0, 1.0))))
+        
         G = nx.Graph()
         
         # Add Satellite Nodes
@@ -109,7 +113,7 @@ class TopologySeries:
         if self.logical_isl:
             u_indices = np.array([e[0] for e in self.logical_isl])
             v_indices = np.array([e[1] for e in self.logical_isl])
-            types = [e[2] for e in self.logical_isl]
+            types = np.array([e[2] for e in self.logical_isl])
             
             p1 = pos[u_indices]
             p2 = pos[v_indices]
@@ -117,6 +121,15 @@ class TopologySeries:
             dists = np.linalg.norm(p2 - p1, axis=1)
             los_ok = has_los(p1, p2)
             valid = (dists <= self.isl_max_range) & los_ok
+            
+            max_lat = self.config['constellation'].get('isl_inter_plane_max_lat_deg')
+            if max_lat is not None:
+                lat1 = abs_lats[u_indices]
+                lat2 = abs_lats[v_indices]
+                lat_ok = (lat1 <= max_lat) & (lat2 <= max_lat)
+                is_inter = (types == 'inter')
+                lat_ok_final = np.where(is_inter, lat_ok, True)
+                valid = valid & lat_ok_final
             
             for i in range(len(self.logical_isl)):
                 if valid[i]:

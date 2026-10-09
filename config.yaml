@@ -6,6 +6,7 @@ constellation:
   inclination_deg: 53
   isl_max_range_km: 3000
   minimum_elevation_deg: 25
+  isl_inter_plane_max_lat_deg: 45
 
 simulation:
   timestep_s: 1.0

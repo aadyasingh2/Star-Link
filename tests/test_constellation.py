@@ -35,17 +35,48 @@ def test_intra_plane_distances_constant(config):
             assert np.isclose(d0, d1000, atol=1e-3)
 
 def test_inter_plane_link_counts(config):
+    config['constellation']['isl_inter_plane_max_lat_deg'] = 45
     constellation = Constellation(config)
     ts = TopologySeries(config, constellation)
     
-    g0 = ts.get_snapshot(0)
-    g1000 = ts.get_snapshot(1000)
+    inter_counts = []
+    intra_counts = []
     
-    inter0 = sum(1 for _, _, d in g0.edges(data=True) if d['link_type'] == 'inter')
-    inter1000 = sum(1 for _, _, d in g1000.edges(data=True) if d['link_type'] == 'inter')
+    for t in [0, 500, 1000]:
+        g = ts.get_snapshot(t)
+        inter = sum(1 for _, _, d in g.edges(data=True) if d['link_type'] == 'inter')
+        intra = sum(1 for _, _, d in g.edges(data=True) if d['link_type'] == 'intra')
+        inter_counts.append(inter)
+        intra_counts.append(intra)
     
-    assert inter0 > 0
-    assert inter1000 > 0
+    assert len(set(inter_counts)) > 1, "Inter-plane links should churn with cutoff=45"
+    assert len(set(intra_counts)) == 1, "Intra-plane links should not change"
+
+def test_zero_isl_churn_with_null_cutoff(config):
+    config['constellation']['isl_inter_plane_max_lat_deg'] = None
+    constellation = Constellation(config)
+    ts = TopologySeries(config, constellation)
+    
+    inter_counts = []
+    for t in [0, 500, 1000]:
+        g = ts.get_snapshot(t)
+        inter = sum(1 for _, _, d in g.edges(data=True) if d['link_type'] == 'inter')
+        inter_counts.append(inter)
+        
+    assert len(set(inter_counts)) == 1, "Inter-plane links should NOT churn with cutoff=None"
+
+def test_no_links_above_cutoff(config):
+    config['constellation']['isl_inter_plane_max_lat_deg'] = 45
+    constellation = Constellation(config)
+    ts = TopologySeries(config, constellation)
+    
+    g = ts.get_snapshot(0)
+    for u, v, d in g.edges(data=True):
+        if d['link_type'] == 'inter':
+            lat_u = np.abs(np.degrees(np.arcsin(g.nodes[u]['pos'][2] / np.linalg.norm(g.nodes[u]['pos']))))
+            lat_v = np.abs(np.degrees(np.arcsin(g.nodes[v]['pos'][2] / np.linalg.norm(g.nodes[v]['pos']))))
+            assert lat_u <= 45.0 + 1e-5
+            assert lat_v <= 45.0 + 1e-5
 
 def test_ground_station_visibility(config):
     constellation = Constellation(config)
