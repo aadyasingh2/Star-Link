@@ -52,6 +52,7 @@ def test_link_state_zero_delay(config):
     assert lsr.control_message_count > 0
 
 def test_dv_poison_reverse(config):
+    config['routing']['zero_delay'] = True
     # A - B - C
     g1 = nx.Graph()
     g1.add_edge('A', 'B', propagation_delay_ms=10000, available=True)

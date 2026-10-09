@@ -21,6 +21,8 @@ class DistanceVectorRouter(Router):
         self.neighbor_dvs = defaultdict(lambda: defaultdict(dict))  # node -> neighbor -> dst -> cost
         self.periodic_timers = {}
         self.active_nodes = set()
+        self._dropped_message_count = 0
+        self._boot_message_count = 0
 
     def compute_route(self, src, dst, t):
         """Return full path from src to dst using DV table.
@@ -121,15 +123,35 @@ class DistanceVectorRouter(Router):
     def _send_updates(self, node):
         if not self.link_costs[node]:
             return
-        for neighbor, delay in self.link_costs[node].items():
+        is_gs = self.engine.is_ground_station(node)
+        for neighbor in list(self.link_costs[node]):
+            # Check if link is physically up at send time
+            d = self.engine.link_delay(node, neighbor, self.engine.current_time)
+            if d is None:
+                continue  # link not physically up; silently skip
+            # Build update vector with poison reverse
             update_vector = {}
             for dst, (cost, nxt) in self.dv[node].items():
+                # Ground stations never relay others' routes
+                if is_gs and dst != node:
+                    continue
                 if nxt == neighbor and dst != node:
-                    update_vector[dst] = self.infinity
+                    update_vector[dst] = self.infinity  # poison reverse
                 else:
                     update_vector[dst] = cost
-            self._control_message_count += 1
-            self.engine.schedule(0, self._receive_update, neighbor, node, update_vector)
+            # Compute message delay
+            if self.zero_delay:
+                msg_delay = 0
+            else:
+                msg_delay = d + self.processing_delay_s
+            # Count message and bytes (boot messages counted separately)
+            msg_bytes = self.bytes_per_dv_header + self.bytes_per_dv_entry * len(update_vector)
+            if self.engine.current_time <= 0:
+                self._boot_message_count += 1
+            else:
+                self._control_message_count += 1
+                self._control_bytes_count += msg_bytes
+            self.engine.schedule(msg_delay, self._receive_update, neighbor, node, update_vector)
 
     def _receive_update(self, node, neighbor, update_vector):
         self.neighbor_dvs[node][neighbor] = update_vector
