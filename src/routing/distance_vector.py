@@ -7,6 +7,10 @@ class DistanceVectorRouter(Router):
         super().__init__(config)
         self.update_interval = config['routing']['dv_update_interval_s']
         self.infinity = config['routing']['dv_infinity']
+        self.processing_delay_s = config['routing'].get('dv_processing_delay_ms', 1.0) / 1000.0
+        self.zero_delay = config['routing'].get('zero_delay', False)
+        self.bytes_per_dv_header = config['routing'].get('bytes_per_dv_header', 24)
+        self.bytes_per_dv_entry = config['routing'].get('bytes_per_dv_entry', 8)
         self.random = random.Random(config['simulation'].get('random_seed', 42))
         self.reset()
 
