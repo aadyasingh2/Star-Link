@@ -27,8 +27,9 @@ class DistanceVectorRouter(Router):
     def compute_route(self, src, dst, t):
         """Return full path from src to dst using DV table.
         Repeatedly follow next hops from compute_route_hop. Detect loops.
-        If no route, return None.
+        If no route, return None and set self.last_failure.
         """
+        self.last_failure = None
         if src == dst:
             return [src]
         path = [src]
@@ -37,8 +38,13 @@ class DistanceVectorRouter(Router):
         while True:
             nxt = self.compute_route_hop(current, dst, t)
             if nxt is None:
+                self.last_failure = "no_route"
                 return None
             if nxt in visited:
+                self.last_failure = "loop"
+                return None
+            if self.engine.is_ground_station(nxt) and nxt != dst:
+                self.last_failure = "gs_transit"
                 return None
             path.append(nxt)
             if nxt == dst:
