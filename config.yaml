@@ -41,3 +41,15 @@ sapr:
   guard_time_s: 5.0
   hysteresis_margin_ms: 10.0
   latency_bound_multiplier: 1.2
+
+routing:
+  detection_delay_s: 0.1
+  lsa_processing_delay_ms: 1.0
+  spf_holddown_s: 1.0
+  dv_update_interval_s: 30.0
+  dv_infinity: 10000.0
+  cost_change_threshold_ms: 2.0
+  bytes_per_lsa_header: 24
+  bytes_per_lsa_link: 8
+  bytes_per_dv_header: 24
+  bytes_per_dv_entry: 8
