@@ -40,7 +40,7 @@ def test_link_state_zero_delay(config):
         ('C', 'D', 10.0), ('B', 'D', 15.0), ('D', 'E', 10.0)
     ]
     for u, v, d in edges:
-        g.add_edge(u, v, propagation_delay_ms=d*1000, available=True)
+        g.add_edge(u, v, propagation_delay_ms=d, available=True)
         
     ts = MockTopologySeries({0.0: g})
     engine = RoutingEngine(config, ts)
@@ -56,11 +56,11 @@ def test_dv_poison_reverse(config):
     config['routing']['zero_delay'] = True
     # A - B - C
     g1 = nx.Graph()
-    g1.add_edge('A', 'B', propagation_delay_ms=10000, available=True)
-    g1.add_edge('B', 'C', propagation_delay_ms=10000, available=True)
+    g1.add_edge('A', 'B', propagation_delay_ms=10.0, available=True)
+    g1.add_edge('B', 'C', propagation_delay_ms=10.0, available=True)
     
     g2 = nx.Graph()
-    g2.add_edge('A', 'B', propagation_delay_ms=10000, available=True)
+    g2.add_edge('A', 'B', propagation_delay_ms=10.0, available=True)
     
     ts = MockTopologySeries({0.0: g1, 10.0: g2})
     engine = RoutingEngine(config, ts)
@@ -174,7 +174,7 @@ def test_dv_6_node_convergence(config):
         ('E', 'F', 10.0)
     ]
     for u, v, d in edges:
-        g.add_edge(u, v, propagation_delay_ms=d*1000, available=True)
+        g.add_edge(u, v, propagation_delay_ms=d, available=True)
     ts = MockTopologySeries({0.0: g})
     engine = RoutingEngine(config, ts)
     dvr = DistanceVectorRouter(config)
