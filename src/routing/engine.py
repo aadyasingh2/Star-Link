@@ -104,7 +104,7 @@ class RoutingEngine:
                 delay = d["propagation_delay_ms"] / 1000.0
             else:
                 raise KeyError("Missing propagation delay attribute")
-            prev_edges[(u, v)] = delay
+            prev_edges[tuple(sorted((u, v)))] = delay
         curr_edges = {}
         for u, v, d in curr.edges(data=True):
             if "propagation_delay_s" in d:
@@ -113,7 +113,7 @@ class RoutingEngine:
                 delay = d["propagation_delay_ms"] / 1000.0
             else:
                 raise KeyError("Missing propagation delay attribute")
-            curr_edges[(u, v)] = delay
+            curr_edges[tuple(sorted((u, v)))] = delay
         events = []
         # Up events
         for (u, v), delay in curr_edges.items():
@@ -146,8 +146,12 @@ class RoutingEngine:
         """Load the initial topology (snapshot at time 0) into routers.
         This ensures routers have a complete view before any events.
         """
+        boot_window = self.config.get('routing', {}).get('boot_window_s', 60.0)
+        self.current_time = -boot_window
         self.boot_mode = True
         snapshot = self.topology_series.get_snapshot(0)
+        for r in self.routers:
+            r.begin_batch()
         for u, v, d in snapshot.edges(data=True):
             if "propagation_delay_s" in d:
                 delay = d["propagation_delay_s"]
@@ -157,16 +161,9 @@ class RoutingEngine:
                 raise KeyError("Missing propagation delay attribute")
             for r in self.routers:
                 r.handle_link_up(u, v, delay, 0)
-        # Drain in-flight boot messages (propagation+processing delayed) while
-        # boot_mode=True. Cap at boot_convergence_s to avoid consuming periodic updates.
-        import math
-        self.run_until(0)
-        boot_cap = self.config.get('routing', {}).get('boot_convergence_s', 10.0)
-        while self._queue:
-            next_t = self._queue[0][0]
-            if next_t > boot_cap:
-                break
-            self.run_until(next_t + 1e-12)
+        for r in self.routers:
+            r.end_batch()
+        self.run_until(0.0)
         self.boot_mode = False
 
     def link_delay(self, u, v, t):
@@ -175,7 +172,8 @@ class RoutingEngine:
         The topology is undirected so (u, v) or (v, u) is checked.
         """
         import math
-        snapshot = self.topology_series.get_snapshot(int(math.floor(t)))
+        snapshot_time = 0 if self.boot_mode else int(math.floor(t))
+        snapshot = self.topology_series.get_snapshot(snapshot_time)
         for a, b in [(u, v), (v, u)]:
             if snapshot.has_edge(a, b):
                 d = snapshot[a][b]

@@ -21,8 +21,21 @@ class LinkStateRouter(Router):
         self.next_hop = defaultdict(dict)  # node -> dst -> hop
         self.spf_timers = {}  # node -> timer_id
         self.active_links = defaultdict(dict)  # node -> {neighbor: cost}
+        self._batching = False
+        self._batch_dirty_nodes = set()
         self._dropped_message_count = 0
         self._boot_message_count = 0
+
+    def begin_batch(self):
+        self._batching = True
+        self._batch_dirty_nodes.clear()
+
+    def end_batch(self):
+        dirty_nodes = self._batch_dirty_nodes
+        self._batch_dirty_nodes = set()
+        self._batching = False
+        for node in dirty_nodes:
+            self._local_change(node, self.engine.current_time)
 
     def compute_route_hop(self, node, dst, t):
         """Return next hop for *node* toward *dst* using stored next_hop table."""
@@ -58,8 +71,11 @@ class LinkStateRouter(Router):
         cost_ms = delay * 1000.0
         self.active_links[u][v] = cost_ms
         self.active_links[v][u] = cost_ms
-        self._local_change(u, t)
-        self._local_change(v, t)
+        if self._batching:
+            self._batch_dirty_nodes.update((u, v))
+        else:
+            self._local_change(u, t)
+            self._local_change(v, t)
 
     def handle_link_down(self, u, v, t):
         # Remove bidirectional link
@@ -67,8 +83,11 @@ class LinkStateRouter(Router):
             del self.active_links[u][v]
         if u in self.active_links[v]:
             del self.active_links[v][u]
-        self._local_change(u, t)
-        self._local_change(v, t)
+        if self._batching:
+            self._batch_dirty_nodes.update((u, v))
+        else:
+            self._local_change(u, t)
+            self._local_change(v, t)
 
     def _local_change(self, node, t):
         self.my_seq[node] += 1

@@ -34,6 +34,14 @@ class Router(ABC):
         # expose public attribute for compatibility
         self.engine = engine
 
+    def begin_batch(self):
+        """Begin a batch of initial topology changes."""
+        pass
+
+    def end_batch(self):
+        """Finish a batch of initial topology changes."""
+        pass
+
     @abstractmethod
     def compute_route(self, src, dst, t):
         """Instantaneous route resolution at time *t*.

@@ -22,8 +22,23 @@ class DistanceVectorRouter(Router):
         self.neighbor_dvs = defaultdict(lambda: defaultdict(dict))  # node -> neighbor -> dst -> cost
         self.periodic_timers = {}
         self.active_nodes = set()
+        self._batching = False
+        self._batch_dirty_nodes = set()
         self._dropped_message_count = 0
         self._boot_message_count = 0
+
+    def begin_batch(self):
+        self._batching = True
+        self._batch_dirty_nodes.clear()
+
+    def end_batch(self):
+        dirty_nodes = self._batch_dirty_nodes
+        self._batch_dirty_nodes = set()
+        self._batching = False
+        for node in dirty_nodes:
+            self._add_active_node(node)
+            self._recompute_dv(node, send=False)
+            self._send_updates(node)
 
     def compute_route(self, src, dst, t):
         """Return full path from src to dst using DV table.
@@ -66,6 +81,11 @@ class DistanceVectorRouter(Router):
         cost_ms = delay * 1000.0
         self.link_costs[u][v] = cost_ms
         self.link_costs[v][u] = cost_ms
+        if self._batching:
+            self._batch_dirty_nodes.update((u, v))
+            return
+        self._add_active_node(u)
+        self._add_active_node(v)
         self._recompute_dv(u)
         self._recompute_dv(v)
         # Immediately send DV updates to neighbors (instantaneous)
@@ -81,6 +101,9 @@ class DistanceVectorRouter(Router):
             del self.neighbor_dvs[u][v]
         if u in self.neighbor_dvs[v]:
             del self.neighbor_dvs[v][u]
+        if self._batching:
+            self._batch_dirty_nodes.update((u, v))
+            return
         self._recompute_dv(u)
         self._recompute_dv(v)
 
@@ -100,7 +123,7 @@ class DistanceVectorRouter(Router):
         self._send_updates(node)
         self._schedule_periodic(node)
 
-    def _recompute_dv(self, node):
+    def _recompute_dv(self, node, send=True):
         changed = False
         all_dsts = set([node])
         for n_dv in self.neighbor_dvs[node].values():
@@ -128,7 +151,7 @@ class DistanceVectorRouter(Router):
                 else:
                     self.dv[node][dst] = (self.infinity, None)
                 changed = True
-        if changed:
+        if changed and send:
             self._send_updates(node)
 
     def _send_updates(self, node):

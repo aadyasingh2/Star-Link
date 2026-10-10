@@ -7,6 +7,10 @@ class DummyRouter:
         self.engine = None
     def attach_engine(self, engine):
         self.engine = engine
+    def begin_batch(self):
+        pass
+    def end_batch(self):
+        pass
     def handle_link_up(self, u, v, delay, t):
         self.events.append(('up', u, v, t))
     def handle_link_down(self, u, v, t):

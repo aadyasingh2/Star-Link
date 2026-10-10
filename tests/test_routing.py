@@ -1,8 +1,12 @@
 import pytest
 import networkx as nx
+import time
+import yaml
+from pathlib import Path
 from src.routing.engine import RoutingEngine
 from src.routing.link_state import LinkStateRouter
 from src.routing.distance_vector import DistanceVectorRouter
+from src.constellation import Constellation, TopologySeries
 
 class MockTopologySeries:
     def __init__(self, snapshots):
@@ -62,17 +66,19 @@ def test_dv_poison_reverse(config):
     g2 = nx.Graph()
     g2.add_edge('A', 'B', propagation_delay_ms=10.0, available=True)
     
-    ts = MockTopologySeries({0.0: g1, 10.0: g2})
+    ts = MockTopologySeries({0.0: g1})
     engine = RoutingEngine(config, ts)
     dvr = DistanceVectorRouter(config)
     engine.add_router('dvr', dvr)
     
     engine.initialize()
-    engine.step_to(9.0)
+    down_step = int(engine.current_time) + 10
+    ts.snapshots[float(down_step)] = g2
+    engine.step_to(down_step - 1.0)
     
-    assert dvr.compute_route('A', 'C', 9.0) == ['A', 'B', 'C']
+    assert dvr.compute_route('A', 'C', down_step - 1.0) == ['A', 'B', 'C']
     
-    engine.step_to(11.0)
+    engine.step_to(down_step + 1.0)
     engine.drain_queue_until(30.0)
     
     assert dvr.compute_route('B', 'C', 30.0) is None
@@ -88,19 +94,21 @@ def test_stale_route_window(config):
     
     g2 = nx.Graph()
     
-    ts = MockTopologySeries({0.0: g1, 10.0: g2})
+    ts = MockTopologySeries({0.0: g1})
     engine = RoutingEngine(config, ts)
     lsr = LinkStateRouter(config)
     engine.add_router('lsr', lsr)
     
     engine.initialize()
+    down_step = int(engine.current_time) + 10
+    ts.snapshots[float(down_step)] = g2
     
-    engine.step_to(11.0) 
-    # Link down at 10.0, detection at 15.0, so at 11.0 route is stale but alive in router
-    assert lsr.compute_route('A', 'B', 11.0) == ['A', 'B']
+    engine.step_to(down_step + 1.0)
+    # Detection is delayed by 5 seconds, so the route is still stale and alive.
+    assert lsr.compute_route('A', 'B', down_step + 1.0) == ['A', 'B']
     
-    engine.step_to(16.0) 
-    assert lsr.compute_route('A', 'B', 16.0) is None
+    engine.step_to(down_step + 6.0)
+    assert lsr.compute_route('A', 'B', down_step + 6.0) is None
 
 def test_boot_messages(config):
     g1 = nx.Graph()
@@ -110,9 +118,9 @@ def test_boot_messages(config):
     dvr = DistanceVectorRouter(config)
     engine.add_router('dvr', dvr)
     engine.initialize()
-    engine.drain_queue_until(5.0)
     assert dvr.boot_message_count > 0
     assert dvr.control_message_count == 0
+    engine.drain_queue_until(5.0)
     assert dvr.compute_route('A', 'B', 5.0) == ['A', 'B']
 
 def test_dv_delivery_time(config):
@@ -140,12 +148,14 @@ def test_dv_drop_in_flight(config):
     g1 = nx.Graph()
     g1.add_edge('A', 'B', propagation_delay_ms=1000, available=True)
     g2 = nx.Graph()
-    ts = MockTopologySeries({0.0: g1, 0.5: g2})
+    ts = MockTopologySeries({0.0: g1})
     engine = RoutingEngine(config, ts)
     dvr = DistanceVectorRouter(config)
     engine.add_router('dvr', dvr)
     engine.initialize()
-    engine.step_to(2.0)
+    down_step = int(engine.current_time) + 2
+    ts.snapshots[float(down_step)] = g2
+    engine.step_to(down_step + 3.0)
     assert dvr.dropped_message_count > 0
 
 def test_dv_gs_transit(config):
@@ -190,17 +200,19 @@ def test_dv_stale_route_window(config):
     g2 = nx.Graph()
     g2.add_edge('A', 'B', propagation_delay_ms=1000, available=True)
     # Link B-C goes down at 10.0
-    ts = MockTopologySeries({0.0: g1, 10.0: g2})
+    ts = MockTopologySeries({0.0: g1})
     engine = RoutingEngine(config, ts)
     dvr = DistanceVectorRouter(config)
     engine.add_router('dvr', dvr)
     engine.initialize()
-    engine.step_to(10.5)
-    # B-C down at 10.0. B's DV immediately drops C. A's DV still has stale entry via B.
+    down_step = int(engine.current_time) + 10
+    ts.snapshots[float(down_step)] = g2
+    engine.step_to(down_step + 0.5)
+    # B's DV immediately drops C. A's DV still has stale entry via B.
     # This is a black-hole: A's table says C reachable via B, but B has no route to C.
     # Assert the stale entry exists in A's table (not delivered via compute_route which follows hops):
     cost_to_c, nxt_to_c = dvr.dv.get('A', {}).get('C', (dvr.infinity, None))
-    assert cost_to_c < dvr.infinity, "A should still have stale DV entry for C at 10.5"
+    assert cost_to_c < dvr.infinity, f"A should still have stale DV entry for C at {down_step + 0.5}"
     assert nxt_to_c == 'B'
     engine.drain_queue_until(200.0)
     cost_after, _ = dvr.dv.get('A', {}).get('C', (dvr.infinity, None))
@@ -331,3 +343,59 @@ def test_ls_stale_route_window_nonzero(config):
     assert lsr.compute_route('A', 'C', 10.5) == ['A', 'B', 'C']
     engine.drain_queue_until(25.0)
     assert lsr.compute_route('A', 'C', 25.0) is None
+
+def test_boot_on_t0_topology_for_both_routers(config):
+    config['routing']['zero_delay'] = True
+    graph = nx.Graph()
+    edges = [
+        ('A', 'B', 2.0), ('B', 'C', 3.0), ('A', 'C', 9.0),
+        ('C', 'D', 1.5), ('B', 'D', 5.0), ('D', 'E', 4.0)
+    ]
+    for u, v, delay_ms in edges:
+        graph.add_edge(u, v, propagation_delay_ms=delay_ms, available=True)
+
+    engine = RoutingEngine(config, MockTopologySeries({0.0: graph}))
+    routers = [LinkStateRouter(config), DistanceVectorRouter(config)]
+    for name, router in zip(('lsr', 'dvr'), routers):
+        engine.add_router(name, router)
+    engine.initialize()
+
+    assert engine.current_time == 0.0
+    for router in routers:
+        assert router.boot_message_count > 0
+        assert router.control_message_count == 0
+        for src in graph.nodes:
+            for dst in graph.nodes:
+                expected = nx.shortest_path(
+                    graph, src, dst, weight='propagation_delay_ms'
+                )
+                assert router.compute_route(src, dst, 0.0) == expected
+
+@pytest.mark.slow
+def test_real_constellation_routes_after_boot(config):
+    config_path = Path(__file__).resolve().parents[1] / 'config.yaml'
+    with config_path.open(encoding='utf-8') as config_file:
+        real_config = yaml.safe_load(config_file)
+    assert real_config['constellation']['isl_inter_plane_max_lat_deg'] == 45
+    constellation = Constellation(real_config)
+    topology = TopologySeries(real_config, constellation)
+    engine = RoutingEngine(real_config, topology)
+    routers = [LinkStateRouter(real_config), DistanceVectorRouter(real_config)]
+    for name, router in zip(('lsr', 'dvr'), routers):
+        engine.add_router(name, router)
+
+    boot_started = time.perf_counter()
+    engine.initialize()
+    boot_runtime = time.perf_counter() - boot_started
+    print(f'Real constellation boot runtime: {boot_runtime:.3f} seconds')
+    assert boot_runtime <= 120.0
+    engine.step_to(60.0)
+
+    snapshot = topology.get_snapshot(60.0)
+    src, dst = 'gs_Chennai', 'gs_London'
+    for router in routers:
+        path = router.compute_route(src, dst, 60.0)
+        assert path is not None
+        assert path[0] == src
+        assert path[-1] == dst
+        assert all(snapshot.has_edge(u, v) for u, v in zip(path, path[1:]))

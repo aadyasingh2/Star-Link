@@ -43,6 +43,7 @@ sapr:
   latency_bound_multiplier: 1.2
 
 routing:
+  boot_window_s: 60.0                 # seconds
   detection_delay_s: 0.1
   lsa_processing_delay_ms: 1.0       # ms – per-hop processing delay for LSA messages
   dv_processing_delay_ms: 1.0        # ms – per-hop processing delay for DV updates
