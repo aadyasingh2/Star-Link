@@ -27,6 +27,7 @@ def config():
             'lsa_processing_delay_ms': 1.0,
             'spf_holddown_s': 1.0,
             'dv_update_interval_s': 30.0,
+            'dv_triggered_holdoff_s': 1.0,
             'dv_infinity': 10000.0
         },
         'simulation': {'random_seed': 42}
@@ -192,6 +193,34 @@ def test_dv_6_node_convergence(config):
     engine.initialize()
     engine.drain_queue_until(5.0)
     assert dvr.compute_route('A', 'F', 5.0) == ['A', 'B', 'D', 'E', 'F']
+
+def test_dv_triggered_holdoff_reduces_boot_events(config):
+    graph = nx.Graph()
+    for index in range(5):
+        graph.add_edge(
+            f'N{index}', f'N{index + 1}',
+            propagation_delay_ms=10.0, available=True,
+        )
+    results = []
+    for holdoff in (1.0, 0.0):
+        run_config = {
+            'routing': dict(config['routing']),
+            'simulation': dict(config['simulation']),
+        }
+        run_config['routing']['zero_delay'] = True
+        run_config['routing']['dv_triggered_holdoff_s'] = holdoff
+        engine = RoutingEngine(run_config, MockTopologySeries({0.0: graph}))
+        dvr = DistanceVectorRouter(run_config)
+        engine.add_router('dvr', dvr)
+        engine.initialize()
+        expected = nx.shortest_path(
+            graph, 'N0', 'N5', weight='propagation_delay_ms'
+        )
+        assert dvr.compute_route('N0', 'N5', 0.0) == expected
+        results.append((dvr.boot_message_count, engine.events_processed))
+
+    assert results[0][0] < results[1][0]
+    assert results[0][1] < results[1][1]
 
 def test_dv_stale_route_window(config):
     g1 = nx.Graph()

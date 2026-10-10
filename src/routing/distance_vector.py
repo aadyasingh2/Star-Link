@@ -7,6 +7,9 @@ class DistanceVectorRouter(Router):
     def __init__(self, config):
         super().__init__(config)
         self.update_interval = config['routing']['dv_update_interval_s']
+        self.triggered_holdoff_s = config['routing'].get(
+            'dv_triggered_holdoff_s', 0.0
+        )
         self.infinity = config['routing']['dv_infinity']
         self.processing_delay_s = config['routing'].get('dv_processing_delay_ms', 1.0) / 1000.0
         self.zero_delay = config['routing'].get('zero_delay', False)
@@ -23,7 +26,9 @@ class DistanceVectorRouter(Router):
         self.link_cost = defaultdict(dict)
         self.neighbor_vec = {}
         self.periodic_timers = {}
+        self.triggered_pending = set()
         self.active_nodes = set()
+        self._infinity_vec = None
         self._batching = False
         self._batch_dirty_nodes = set()
         self._dropped_message_count = 0
@@ -48,6 +53,9 @@ class DistanceVectorRouter(Router):
     def begin_batch(self):
         self._batching = True
         self._batch_dirty_nodes.clear()
+        self._infinity_vec = np.full(
+            self.engine.n_nodes, self.infinity, dtype=float
+        )
         for node in self.engine.node_index:
             self._ensure_node(node)
 
@@ -113,9 +121,8 @@ class DistanceVectorRouter(Router):
         self._add_active_node(v)
         self._recompute_dv(u)
         self._recompute_dv(v)
-        # Immediately send DV updates to neighbors (instantaneous)
-        self._send_updates(u)
-        self._send_updates(v)
+        self._request_triggered_send(u)
+        self._request_triggered_send(v)
 
     def handle_link_down(self, u, v, t):
         u_idx = self.engine.node_index[u]
@@ -154,6 +161,19 @@ class DistanceVectorRouter(Router):
         self._send_updates(node)
         self._schedule_periodic(node)
 
+    def _request_triggered_send(self, node):
+        if self.triggered_holdoff_s <= 0:
+            self._send_updates(node)
+        elif node not in self.triggered_pending:
+            self.triggered_pending.add(node)
+            self.engine.schedule(
+                self.triggered_holdoff_s, self._send_triggered, node
+            )
+
+    def _send_triggered(self, node):
+        self.triggered_pending.discard(node)
+        self._send_updates(node)
+
     def _recompute_dv(self, node, send=True):
         self._ensure_node(node)
         own_idx = self.engine.node_index[node]
@@ -172,7 +192,7 @@ class DistanceVectorRouter(Router):
             vectors = np.stack([
                 self.neighbor_vec.get(
                     (node, int(neighbor_idx)),
-                    np.full(self.engine.n_nodes, self.infinity, dtype=float),
+                    self._infinity_vec,
                 )
                 for neighbor_idx in neighbor_indices
             ])
@@ -202,7 +222,7 @@ class DistanceVectorRouter(Router):
         self.cost[node] = new_cost
         self.nxt[node] = new_nxt
         if changed and send:
-            self._send_updates(node)
+            self._request_triggered_send(node)
 
     def _send_updates(self, node):
         if not self.link_cost[node]:
