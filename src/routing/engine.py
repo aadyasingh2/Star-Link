@@ -1,6 +1,7 @@
 import heapq
 import itertools
 import time
+import numpy as np
 
 class RoutingEngine:
     """Custom heapq based Routing Engine.
@@ -23,6 +24,10 @@ class RoutingEngine:
         self.boot_mode = False
         self.events_processed = 0
         self._wall_clock_deadline = None
+        self.node_index = {}
+        self.nodes = []
+        self.n_nodes = 0
+        self.gs_mask = np.zeros(0, dtype=bool)
         # Attach engine to each router
         for r in self.routers:
             r.attach_engine(self)
@@ -157,6 +162,15 @@ class RoutingEngine:
         self.current_time = -boot_window
         self.boot_mode = True
         snapshot = self.topology_series.get_snapshot(0)
+        nodes = sorted(snapshot.nodes, key=str)
+        self.nodes = nodes
+        self.node_index = {node: index for index, node in enumerate(nodes)}
+        self.n_nodes = len(nodes)
+        self.gs_mask = np.array([
+            snapshot.nodes[node].get('type') == 'ground_station'
+            or str(node).startswith('gs_')
+            for node in nodes
+        ], dtype=bool)
         for r in self.routers:
             r.begin_batch()
         for u, v, d in snapshot.edges(data=True):

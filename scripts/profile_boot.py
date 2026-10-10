@@ -1,4 +1,5 @@
 import cProfile
+import argparse
 import io
 import os
 import pstats
@@ -15,13 +16,24 @@ from src.routing.link_state import LinkStateRouter
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--router',
+        choices=('link-state', 'distance-vector', 'both'),
+        default='both',
+    )
+    selected_router = parser.parse_args().router
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     with open(os.path.join(root, 'config.yaml'), encoding='utf-8') as config_file:
         config = yaml.safe_load(config_file)
 
     constellation = Constellation(config)
     topology = TopologySeries(config, constellation)
-    router_types = (LinkStateRouter, DistanceVectorRouter)
+    router_types = {
+        'link-state': (LinkStateRouter,),
+        'distance-vector': (DistanceVectorRouter,),
+        'both': (LinkStateRouter, DistanceVectorRouter),
+    }[selected_router]
 
     for router_type in router_types:
         router = router_type(config)
