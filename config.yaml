@@ -48,7 +48,8 @@ routing:
   dv_processing_delay_ms: 1.0        # ms – per-hop processing delay for DV updates
   spf_holddown_s: 1.0
   dv_update_interval_s: 30.0
-  dv_infinity: 10000.0
+  dv_infinity: 10000.0               # ms
+  dv_poison_reverse: true
   cost_change_threshold_ms: 2.0
   zero_delay: false                   # when true, propagation AND processing delays are 0
   bytes_per_lsa_header: 24

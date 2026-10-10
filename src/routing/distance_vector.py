@@ -63,8 +63,9 @@ class DistanceVectorRouter(Router):
     def handle_link_up(self, u, v, delay, t):
         self._add_active_node(u)
         self._add_active_node(v)
-        self.link_costs[u][v] = delay
-        self.link_costs[v][u] = delay
+        cost_ms = delay * 1000.0
+        self.link_costs[u][v] = cost_ms
+        self.link_costs[v][u] = cost_ms
         self._recompute_dv(u)
         self._recompute_dv(v)
         # Immediately send DV updates to neighbors (instantaneous)

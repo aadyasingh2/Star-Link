@@ -54,9 +54,10 @@ class LinkStateRouter(Router):
         return path
 
     def handle_link_up(self, u, v, delay, t):
-        # Add bidirectional link
-        self.active_links[u][v] = delay
-        self.active_links[v][u] = delay
+        # Add bidirectional link with cost in ms
+        cost_ms = delay * 1000.0
+        self.active_links[u][v] = cost_ms
+        self.active_links[v][u] = cost_ms
         self._local_change(u, t)
         self._local_change(v, t)
 
@@ -93,12 +94,10 @@ class LinkStateRouter(Router):
         g = nx.DiGraph()
         for origin, links in self.global_lsdb[node].items():
             for neighbor, cost in links.items():
-                # Only include edge if link is currently up according to engine snapshot
-                if self.engine.link_is_up(origin, neighbor, self.engine.current_time):
-                    # Ground stations are only the SPF source or destination, never relaxed as transit
-                    if self.engine.is_ground_station(origin) and origin != node:
-                        continue
-                    g.add_edge(origin, neighbor, weight=cost)
+                # Ground stations are only the SPF source or destination, never relaxed as transit
+                if self.engine.is_ground_station(origin) and origin != node:
+                    continue
+                g.add_edge(origin, neighbor, weight=cost)
         self.next_hop[node] = {}
         try:
             paths = nx.single_source_dijkstra_path(g, node)
@@ -109,6 +108,8 @@ class LinkStateRouter(Router):
             pass
 
     def _flood(self, current_node, origin, seq, links, exclude, t):
+        if self.engine.is_ground_station(current_node) and current_node != origin:
+            return
         for neighbor in self.active_links[current_node]:
             if neighbor == exclude:
                 continue
