@@ -44,24 +44,32 @@ def main():
                     dvr.compute_route(src, dst, float(t))
     except TimeoutError:
         run_seconds = time.perf_counter() - run_started
-        print(f'boot_seconds: {boot_seconds:.3f}')
-        print(f'60_step_run_seconds: {run_seconds:.3f} (exceeded 180-second guard)')
-        print(f'events_processed: {engine.events_processed}')
-        print(f'LS_spf_runs: {lsr.spf_runs}')
-        print(f'LS_control_message_count: {lsr.control_message_count}')
-        print(f'DV_control_message_count: {dvr.control_message_count}')
+        print(
+            f'boot_seconds: {boot_seconds:.3f}; '
+            f'60_step_run_seconds: {run_seconds:.3f} (exceeded 180-second guard); '
+            f'events_processed: {engine.events_processed}; '
+            f'cost_events_generated: {engine.cost_events_generated}; '
+            f'LS_spf_runs: {lsr.spf_runs}; '
+            f'LS_lsa_from_cost_change: {lsr.lsa_from_cost_change}; '
+            f'LS_control_message_count: {lsr.control_message_count}; '
+            f'DV_control_message_count: {dvr.control_message_count}'
+        )
         return
     finally:
         engine._wall_clock_deadline = None
     run_seconds = time.perf_counter() - run_started
 
-    print(f'boot_seconds: {boot_seconds:.3f}')
-    print(f'60_step_run_seconds: {run_seconds:.3f}')
-    print(f'events_processed: {engine.events_processed}')
-    print(f'LS_spf_runs: {lsr.spf_runs}')
-    print(f'LS_control_message_count: {lsr.control_message_count}')
-    print(f'DV_control_message_count: {dvr.control_message_count}')
-    print(f'extrapolated_600_step_seconds: {run_seconds * 10:.3f}')
+    print(
+        f'boot_seconds: {boot_seconds:.3f}; '
+        f'60_step_run_seconds: {run_seconds:.3f}; '
+        f'events_processed: {engine.events_processed}; '
+        f'cost_events_generated: {engine.cost_events_generated}; '
+        f'LS_spf_runs: {lsr.spf_runs}; '
+        f'LS_lsa_from_cost_change: {lsr.lsa_from_cost_change}; '
+        f'LS_control_message_count: {lsr.control_message_count}; '
+        f'DV_control_message_count: {dvr.control_message_count}; '
+        f'extrapolated_600_step_seconds: {run_seconds * 10:.3f}'
+    )
 
 
 if __name__ == '__main__':

@@ -25,6 +25,7 @@ class LinkStateRouter(Router):
         self._tables = set()
         self.spf_runs = 0
         self.boot_spf_runs = 0
+        self.lsa_from_cost_change = 0
         self.active_links = defaultdict(dict)  # node -> {neighbor: cost}
         self._batching = False
         self._batch_dirty_nodes = set()
@@ -101,6 +102,7 @@ class LinkStateRouter(Router):
         cost_ms = delay * 1000.0
         self.active_links[u][v] = cost_ms
         self.active_links[v][u] = cost_ms
+        self.lsa_from_cost_change += 2
         self._local_change(u, t)
         self._local_change(v, t)
 

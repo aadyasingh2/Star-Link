@@ -23,6 +23,7 @@ class RoutingEngine:
         self._cancelled = set()
         self.boot_mode = False
         self.events_processed = 0
+        self.cost_events_generated = 0
         self._wall_clock_deadline = None
         self.node_index = {}
         self.nodes = []
@@ -145,6 +146,7 @@ class RoutingEngine:
             if advertised is not None and abs(delay - advertised) > threshold_s:
                 self._advertised[key] = delay
                 events.append((u, v, "cost", delay))
+                self.cost_events_generated += 1
         # Schedule detection for each router using absolute time t
         detection = self.config["routing"]["detection_delay_s"]
         for u, v, typ, delay in events:
