@@ -1,5 +1,6 @@
 import heapq
 import itertools
+import time
 
 class RoutingEngine:
     """Custom heapq based Routing Engine.
@@ -20,6 +21,8 @@ class RoutingEngine:
         self._counter = itertools.count()
         self._cancelled = set()
         self.boot_mode = False
+        self.events_processed = 0
+        self._wall_clock_deadline = None
         # Attach engine to each router
         for r in self.routers:
             r.attach_engine(self)
@@ -49,11 +52,15 @@ class RoutingEngine:
     # ---------------------------------------------------------------------
     def run_until(self, target_time):
         while self._queue and self._queue[0][0] <= target_time:
+            if (self._wall_clock_deadline is not None
+                    and time.monotonic() >= self._wall_clock_deadline):
+                raise TimeoutError("Routing event processing exceeded its wall-clock deadline")
             ev_time, seq, func, args, timer_id = heapq.heappop(self._queue)
             if timer_id in self._cancelled:
                 self._cancelled.remove(timer_id)
                 continue
             self.current_time = ev_time
+            self.events_processed += 1
             func(*args)
         self.current_time = target_time
 
