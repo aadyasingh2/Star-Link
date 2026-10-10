@@ -257,16 +257,25 @@ def test_ls_delivery_time(config):
     assert abs(receive_evs[0][0] - expected_delivery) < 1e-9
 
 def test_ls_drop_in_flight(config):
+    # C floods at t0; B receives at about t0+1 (A-B still up) and forwards to A, arriving at about t0+2, which is the step where A-B is gone, so the message is in flight when the link dies and is dropped at delivery.
     g1 = nx.Graph()
     g1.add_edge('A', 'B', propagation_delay_ms=1000, available=True)
-    g2 = nx.Graph()
-    ts = MockTopologySeries({0.0: g1, 0.5: g2})
+    g1.add_edge('B', 'C', propagation_delay_ms=1000, available=True)
+    g2 = nx.Graph()  # A-B gone, B-C still up
+    g2.add_edge('B', 'C', propagation_delay_ms=1000, available=True)
+    ts = MockTopologySeries({0.0: g1})
     engine = RoutingEngine(config, ts)
     lsr = LinkStateRouter(config)
     engine.add_router('lsr', lsr)
     engine.initialize()
-    engine.step_to(2.0)
-    assert lsr.dropped_message_count > 0
+    t0 = engine.current_time
+    assert lsr.dropped_message_count == 0
+    down_step = int(t0) + 2
+    ts.snapshots[float(down_step)] = g2
+    lsr._local_change('C', t0)
+    dropped_before = lsr.dropped_message_count
+    engine.step_to(down_step + 3.0)
+    assert lsr.dropped_message_count > dropped_before
 
 def test_ls_gs_transit(config):
     g = nx.Graph()
