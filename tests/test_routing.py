@@ -1,5 +1,6 @@
 import pytest
 import networkx as nx
+import random
 import time
 import yaml
 from pathlib import Path
@@ -366,12 +367,83 @@ def test_ls_stale_route_window_nonzero(config):
     lsr = LinkStateRouter(config)
     engine.add_router('lsr', lsr)
     engine.initialize()
+    assert lsr.compute_route('A', 'C', 0.0) == ['A', 'B', 'C']
     engine.step_to(10.5)
     # B detects B-C down at 10.0 and floods. LSA reaches A at ~11.0.
     # At 10.5, A still has the old LSA.
     assert lsr.compute_route('A', 'C', 10.5) == ['A', 'B', 'C']
     engine.drain_queue_until(25.0)
     assert lsr.compute_route('A', 'C', 25.0) is None
+
+def test_ls_lazy_spf_waits_for_route_query(config):
+    config['routing']['zero_delay'] = True
+    graph = nx.Graph()
+    graph.add_edge('A', 'B', propagation_delay_ms=5.0, available=True)
+    engine = RoutingEngine(config, MockTopologySeries({0.0: graph}))
+    lsr = LinkStateRouter(config)
+    engine.add_router('lsr', lsr)
+    engine.initialize()
+
+    assert lsr.compute_route('A', 'B', 0.0) == ['A', 'B']
+    runs_before_change = lsr.spf_runs
+    origin_seq = lsr.seq_nums['A']['B']
+    lsr._receive_lsa('A', 'B', origin_seq + 1, {'C': 2.0}, 'B')
+    assert lsr.dirty['A']
+    assert lsr.spf_runs == runs_before_change
+
+def test_ls_lazy_spf_holddown_keeps_old_route_until_expiry(config):
+    config['routing']['zero_delay'] = True
+    config['routing']['spf_holddown_s'] = 2.0
+    graph = nx.Graph()
+    graph.add_edge('S', 'A', propagation_delay_ms=1.0, available=True)
+    graph.add_edge('A', 'D', propagation_delay_ms=1.0, available=True)
+    graph.add_edge('S', 'B', propagation_delay_ms=3.0, available=True)
+    graph.add_edge('B', 'D', propagation_delay_ms=1.0, available=True)
+    engine = RoutingEngine(config, MockTopologySeries({0.0: graph}))
+    lsr = LinkStateRouter(config)
+    engine.add_router('lsr', lsr)
+    engine.initialize()
+
+    assert lsr.compute_route('S', 'D', 0.0) == ['S', 'A', 'D']
+    lsr.handle_link_down('S', 'A', 0.0)
+    assert lsr.compute_route('S', 'D', 0.5) == ['S', 'A', 'D']
+    engine.drain_queue_until(2.0)
+    assert lsr.compute_route('S', 'D', 2.0) == ['S', 'B', 'D']
+
+def test_ls_lazy_spf_matches_networkx_on_random_graphs(config):
+    config['routing']['zero_delay'] = True
+    config['routing']['spf_holddown_s'] = 0.0
+    rng = random.Random(93751)
+    for _ in range(20):
+        graph = nx.Graph()
+        nodes = [f'N{index}' for index in range(10)]
+        graph.add_nodes_from(nodes)
+        for index in range(1, len(nodes)):
+            parent = rng.randrange(index)
+            graph.add_edge(
+                nodes[index], nodes[parent],
+                propagation_delay_ms=rng.uniform(1.0, 100.0),
+                available=True,
+            )
+        for left in range(len(nodes)):
+            for right in range(left + 1, len(nodes)):
+                if not graph.has_edge(nodes[left], nodes[right]) and rng.random() < 0.2:
+                    graph.add_edge(
+                        nodes[left], nodes[right],
+                        propagation_delay_ms=rng.uniform(1.0, 100.0),
+                        available=True,
+                    )
+
+        engine = RoutingEngine(config, MockTopologySeries({0.0: graph}))
+        lsr = LinkStateRouter(config)
+        engine.add_router('lsr', lsr)
+        engine.initialize()
+        for src in nodes:
+            _, expected_paths = nx.single_source_dijkstra(
+                graph, src, weight='propagation_delay_ms'
+            )
+            for dst in nodes:
+                assert lsr.compute_route(src, dst, 0.0) == expected_paths[dst]
 
 def test_boot_on_t0_topology_for_both_routers(config):
     config['routing']['zero_delay'] = True
