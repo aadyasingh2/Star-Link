@@ -137,6 +137,15 @@ class DistanceVectorRouter(Router):
         self._recompute_dv(u)
         self._recompute_dv(v)
 
+    def handle_cost_change(self, u, v, delay, t):
+        cost_ms = delay * 1000.0
+        u_idx = self.engine.node_index[u]
+        v_idx = self.engine.node_index[v]
+        self.link_cost[u][v_idx] = cost_ms
+        self.link_cost[v][u_idx] = cost_ms
+        self._recompute_dv(u)
+        self._recompute_dv(v)
+
     def _ensure_node(self, node):
         if node not in self.cost:
             own_idx = self.engine.node_index[node]

@@ -29,7 +29,8 @@ def config():
             'spf_holddown_s': 1.0,
             'dv_update_interval_s': 30.0,
             'dv_triggered_holdoff_s': 1.0,
-            'dv_infinity': 10000.0
+            'dv_infinity': 10000.0,
+            'cost_change_threshold_ms': 2.0,
         },
         'simulation': {'random_seed': 42}
     }
@@ -297,6 +298,50 @@ def test_ls_delivery_time(config):
     receive_evs = [ev for ev in engine._queue if hasattr(ev[2], '__name__') and ev[2].__name__ == '_receive_lsa']
     assert len(receive_evs) > 0
     assert abs(receive_evs[0][0] - expected_delivery) < 1e-9
+
+def test_cost_drift_below_threshold_is_not_advertised(config):
+    config['routing']['zero_delay'] = True
+    before = nx.Graph()
+    before.add_edge('A', 'B', propagation_delay_ms=10.0, available=True)
+    after = nx.Graph()
+    after.add_edge('A', 'B', propagation_delay_ms=11.0, available=True)
+    engine = RoutingEngine(
+        config, MockTopologySeries({0.0: before, 1.0: after})
+    )
+    lsr = LinkStateRouter(config)
+    engine.add_router('lsr', lsr)
+    engine.initialize()
+    counts_before = (lsr.control_message_count, lsr.control_bytes_count)
+
+    events = engine.generate_events_for_step(1)
+    engine.run_until(1.1)
+
+    assert not [event for event in events if event[2] == 'cost']
+    assert (lsr.control_message_count, lsr.control_bytes_count) == counts_before
+    assert engine._advertised[('A', 'B')] == pytest.approx(0.01)
+
+def test_cost_drift_above_threshold_advertises_once_per_link(config):
+    config['routing']['zero_delay'] = True
+    before = nx.Graph()
+    before.add_edge('A', 'B', propagation_delay_ms=10.0, available=True)
+    after = nx.Graph()
+    after.add_edge('A', 'B', propagation_delay_ms=13.0, available=True)
+    engine = RoutingEngine(
+        config, MockTopologySeries({0.0: before, 1.0: after})
+    )
+    lsr = LinkStateRouter(config)
+    engine.add_router('lsr', lsr)
+    engine.initialize()
+    seq_before = dict(lsr.my_seq)
+
+    events = engine.generate_events_for_step(1)
+    engine.run_until(1.1)
+
+    cost_events = [event for event in events if event[2] == 'cost']
+    assert len(cost_events) == 1
+    assert lsr.my_seq['A'] == seq_before['A'] + 1
+    assert lsr.my_seq['B'] == seq_before['B'] + 1
+    assert engine._advertised[('A', 'B')] == pytest.approx(0.013)
 
 def test_ls_drop_in_flight(config):
     # C floods at t0; B receives at about t0+1 (A-B still up) and forwards to A, arriving at about t0+2, which is the step where A-B is gone, so the message is in flight when the link dies and is dropped at delivery.

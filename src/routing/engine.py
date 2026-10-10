@@ -28,6 +28,7 @@ class RoutingEngine:
         self.nodes = []
         self.n_nodes = 0
         self.gs_mask = np.zeros(0, dtype=bool)
+        self._advertised = {}
         # Attach engine to each router
         for r in self.routers:
             r.attach_engine(self)
@@ -116,7 +117,7 @@ class RoutingEngine:
                 delay = d["propagation_delay_ms"] / 1000.0
             else:
                 raise KeyError("Missing propagation delay attribute")
-            prev_edges[tuple(sorted((u, v)))] = delay
+            prev_edges[tuple(sorted((u, v)))] = (u, v, delay)
         curr_edges = {}
         for u, v, d in curr.edges(data=True):
             if "propagation_delay_s" in d:
@@ -125,25 +126,41 @@ class RoutingEngine:
                 delay = d["propagation_delay_ms"] / 1000.0
             else:
                 raise KeyError("Missing propagation delay attribute")
-            curr_edges[tuple(sorted((u, v)))] = delay
+            curr_edges[tuple(sorted((u, v)))] = (u, v, delay)
         events = []
         # Up events
-        for (u, v), delay in curr_edges.items():
-            if (u, v) not in prev_edges:
+        for key, (u, v, delay) in curr_edges.items():
+            if key not in prev_edges:
                 events.append((u, v, "up", delay))
         # Down events
-        for (u, v) in prev_edges:
-            if (u, v) not in curr_edges:
+        for key, (u, v, _) in prev_edges.items():
+            if key not in curr_edges:
                 events.append((u, v, "down", None))
+        threshold_s = (
+            self.config["routing"].get("cost_change_threshold_ms", 2.0) / 1000.0
+        )
+        for key in prev_edges.keys() & curr_edges.keys():
+            u, v, delay = curr_edges[key]
+            advertised = self._advertised.get(key)
+            if advertised is not None and abs(delay - advertised) > threshold_s:
+                self._advertised[key] = delay
+                events.append((u, v, "cost", delay))
         # Schedule detection for each router using absolute time t
         detection = self.config["routing"]["detection_delay_s"]
         for u, v, typ, delay in events:
             if typ == "up":
+                self._advertised[tuple(sorted((u, v)))] = delay
                 for r in self.routers:
                     self.schedule_at(t + detection, r.handle_link_up, u, v, delay, t)
-            else:
+            elif typ == "down":
+                self._advertised.pop(tuple(sorted((u, v))), None)
                 for r in self.routers:
                     self.schedule_at(t + detection, r.handle_link_down, u, v, t)
+            else:
+                for r in self.routers:
+                    self.schedule_at(
+                        t + detection, r.handle_cost_change, u, v, delay, t
+                    )
         return events
 
     # Router management ---------------------------------------------------
@@ -171,6 +188,15 @@ class RoutingEngine:
             or str(node).startswith('gs_')
             for node in nodes
         ], dtype=bool)
+        self._advertised = {}
+        for u, v, data in snapshot.edges(data=True):
+            if "propagation_delay_s" in data:
+                delay = data["propagation_delay_s"]
+            elif "propagation_delay_ms" in data:
+                delay = data["propagation_delay_ms"] / 1000.0
+            else:
+                raise KeyError("Missing propagation delay attribute")
+            self._advertised[tuple(sorted((u, v)))] = delay
         for r in self.routers:
             r.begin_batch()
         for u, v, d in snapshot.edges(data=True):

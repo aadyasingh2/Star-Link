@@ -97,6 +97,13 @@ class LinkStateRouter(Router):
             self._local_change(u, t)
             self._local_change(v, t)
 
+    def handle_cost_change(self, u, v, delay, t):
+        cost_ms = delay * 1000.0
+        self.active_links[u][v] = cost_ms
+        self.active_links[v][u] = cost_ms
+        self._local_change(u, t)
+        self._local_change(v, t)
+
     def _local_change(self, node, t):
         self.my_seq[node] += 1
         seq = self.my_seq[node]

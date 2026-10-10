@@ -46,6 +46,10 @@ class Router(ABC):
         """Perform optional post-boot initialization."""
         pass
 
+    def handle_cost_change(self, u, v, delay, t):
+        """Handle an advertised propagation-delay change."""
+        pass
+
     @abstractmethod
     def compute_route(self, src, dst, t):
         """Instantaneous route resolution at time *t*.
