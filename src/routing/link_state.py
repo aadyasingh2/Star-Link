@@ -7,6 +7,9 @@ class LinkStateRouter(Router):
         super().__init__(config)
         self.spf_holddown = config['routing']['spf_holddown_s']
         self.lsa_proc_delay = config['routing']['lsa_processing_delay_ms'] / 1000.0
+        self.zero_delay = config['routing'].get('zero_delay', False)
+        self.bytes_per_lsa_header = config['routing'].get('bytes_per_lsa_header', 24)
+        self.bytes_per_lsa_link = config['routing'].get('bytes_per_lsa_link', 8)
         self.reset()
 
     def reset(self):
@@ -18,6 +21,8 @@ class LinkStateRouter(Router):
         self.next_hop = defaultdict(dict)  # node -> dst -> hop
         self.spf_timers = {}  # node -> timer_id
         self.active_links = defaultdict(dict)  # node -> {neighbor: cost}
+        self._dropped_message_count = 0
+        self._boot_message_count = 0
 
     def compute_route_hop(self, node, dst, t):
         """Return next hop for *node* toward *dst* using stored next_hop table."""
@@ -25,31 +30,28 @@ class LinkStateRouter(Router):
 
     def compute_route(self, src, dst, t):
         """Return full path from src to dst using the LSDB."""
+        self.last_failure = None
         if src == dst:
             return [src]
-        # Use next_hop table if available
-        if src in self.next_hop and dst in self.next_hop[src]:
-            path = [src]
-            cur = src
-            visited = {src}
-            while cur != dst:
-                nxt = self.next_hop.get(cur, {}).get(dst)
-                if nxt is None or nxt in visited:
-                    return None
-                path.append(nxt)
-                visited.add(nxt)
-                cur = nxt
-            return path
-        # Fallback: build temporary graph from global LSDB
-        # Fallback: build temporary graph from LSDB entries that are currently active locally
-        G = nx.DiGraph()
-        for origin, neighbor_dict in self.active_links.items():
-            for neighbor, cost in neighbor_dict.items():
-                G.add_edge(origin, neighbor, weight=cost)
-        try:
-            return nx.shortest_path(G, source=src, target=dst, weight='weight')
-        except Exception:
-            return None
+        
+        path = [src]
+        cur = src
+        visited = {src}
+        while cur != dst:
+            nxt = self.next_hop.get(cur, {}).get(dst)
+            if nxt is None:
+                self.last_failure = "no_route"
+                return None
+            if nxt in visited:
+                self.last_failure = "loop"
+                return None
+            if self.engine.is_ground_station(nxt) and nxt != dst:
+                self.last_failure = "gs_transit"
+                return None
+            path.append(nxt)
+            visited.add(nxt)
+            cur = nxt
+        return path
 
     def handle_link_up(self, u, v, delay, t):
         # Add bidirectional link
@@ -93,6 +95,9 @@ class LinkStateRouter(Router):
             for neighbor, cost in links.items():
                 # Only include edge if link is currently up according to engine snapshot
                 if self.engine.link_is_up(origin, neighbor, self.engine.current_time):
+                    # Ground stations are only the SPF source or destination, never relaxed as transit
+                    if self.engine.is_ground_station(origin) and origin != node:
+                        continue
                     g.add_edge(origin, neighbor, weight=cost)
         self.next_hop[node] = {}
         try:
@@ -104,19 +109,32 @@ class LinkStateRouter(Router):
             pass
 
     def _flood(self, current_node, origin, seq, links, exclude, t):
-        for neighbor, delay in self.active_links[current_node].items():
-            if neighbor != exclude:
-                # count only if we actually schedule a send
-                if self.engine.link_is_up(current_node, neighbor, self.engine.current_time):
-                    self._control_message_count += 1
-                    total_delay = delay + self.lsa_proc_delay
-                    self.engine.schedule(total_delay, self._receive_lsa, neighbor, origin, seq, links, current_node)
-                else:
-                    # link down at send time: count as dropped
-                    self._dropped_message_count = getattr(self, '_dropped_message_count', 0) + 1
+        for neighbor in self.active_links[current_node]:
+            if neighbor == exclude:
+                continue
+            d = self.engine.link_delay(current_node, neighbor, self.engine.current_time)
+            if d is None:
+                continue
+            
+            if self.zero_delay:
+                msg_delay = 0
+            else:
+                msg_delay = d + self.lsa_proc_delay
+
+            msg_bytes = self.bytes_per_lsa_header + self.bytes_per_lsa_link * len(links)
+            if self.engine.boot_mode:
+                self._boot_message_count += 1
+            else:
+                self._control_message_count += 1
+                self._control_bytes_count += msg_bytes
+                
+            self.engine.schedule(msg_delay, self._receive_lsa, neighbor, origin, seq, links, current_node)
 
 
     def _receive_lsa(self, node, origin, seq, links, from_neighbor):
+        if not self.engine.link_is_up(from_neighbor, node, self.engine.current_time):
+            self._dropped_message_count += 1
+            return
         if seq <= self.seq_nums[node].get(origin, 0):
             return
         self.seq_nums[node][origin] = seq
