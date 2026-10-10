@@ -7,6 +7,7 @@ from pathlib import Path
 from src.routing.engine import RoutingEngine
 from src.routing.link_state import LinkStateRouter
 from src.routing.distance_vector import DistanceVectorRouter
+from src.routing.evaluation import classify, oracle_path, path_delay_ms
 from src.constellation import Constellation, TopologySeries
 
 class MockTopologySeries:
@@ -34,6 +35,59 @@ def config():
         },
         'simulation': {'random_seed': 42}
     }
+
+def test_classify_correct_for_equal_delay_alternative(config):
+    graph = nx.Graph()
+    graph.add_edge('A', 'B', propagation_delay_ms=1.0)
+    graph.add_edge('B', 'D', propagation_delay_ms=3.0)
+    graph.add_edge('A', 'C', propagation_delay_ms=2.0)
+    graph.add_edge('C', 'D', propagation_delay_ms=2.0)
+    expected_path, expected_delay = oracle_path(graph, 'A', 'D')
+
+    assert expected_path == ['A', 'B', 'D']
+    assert expected_delay == 4.0
+    assert classify(
+        ['A', 'C', 'D'], None, graph, expected_path, expected_delay
+    ) == 'correct'
+
+def test_classify_stale_working_for_longer_valid_path(config):
+    graph = nx.Graph()
+    graph.add_edge('A', 'B', propagation_delay_ms=1.0)
+    graph.add_edge('B', 'D', propagation_delay_ms=1.0)
+    graph.add_edge('A', 'C', propagation_delay_ms=2.0)
+    graph.add_edge('C', 'D', propagation_delay_ms=2.0)
+    expected_path, expected_delay = oracle_path(graph, 'A', 'D')
+
+    assert path_delay_ms(graph, ['A', 'C', 'D']) == 4.0
+    assert classify(
+        ['A', 'C', 'D'], None, graph, expected_path, expected_delay
+    ) == 'stale_working'
+
+def test_classify_loop_and_blackhole(config):
+    graph = nx.Graph()
+    graph.add_edge('A', 'B', propagation_delay_ms=1.0)
+    graph.add_edge('B', 'D', propagation_delay_ms=1.0)
+    expected_path, expected_delay = oracle_path(graph, 'A', 'D')
+
+    assert classify(
+        None, 'loop', graph, expected_path, expected_delay
+    ) == 'loop'
+    assert classify(
+        ['A', 'D'], None, graph, expected_path, expected_delay
+    ) == 'blackhole'
+    assert classify(
+        ['A', 'B'], 'gs_transit', graph, expected_path, expected_delay
+    ) == 'blackhole'
+
+def test_classify_correct_when_both_paths_absent(config):
+    graph = nx.Graph()
+    graph.add_node('A')
+    graph.add_node('D')
+    expected_path, expected_delay = oracle_path(graph, 'A', 'D')
+
+    assert expected_path is None
+    assert expected_delay is None
+    assert classify(None, 'no_route', graph, expected_path, expected_delay) == 'correct'
 
 def test_link_state_zero_delay(config):
     config['routing']['detection_delay_s'] = 0.0
