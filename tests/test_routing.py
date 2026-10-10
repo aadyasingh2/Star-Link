@@ -391,6 +391,38 @@ def test_ls_lazy_spf_waits_for_route_query(config):
     assert lsr.dirty['A']
     assert lsr.spf_runs == runs_before_change
 
+def test_ls_boot_warm_up_populates_tables_without_measured_spf(config):
+    config['routing']['zero_delay'] = True
+    graph = nx.path_graph(['A', 'B', 'C', 'D'])
+    nx.set_edge_attributes(graph, 10.0, 'propagation_delay_ms')
+    engine = RoutingEngine(config, MockTopologySeries({0.0: graph}))
+    lsr = LinkStateRouter(config)
+    engine.add_router('lsr', lsr)
+    engine.initialize()
+
+    assert all(lsr.next_hop[node] for node in graph.nodes)
+    assert lsr.spf_runs == 0
+    assert lsr.boot_spf_runs > 0
+
+def test_ls_warm_table_stays_stale_during_hold_down(config):
+    config['routing']['zero_delay'] = True
+    config['routing']['spf_holddown_s'] = 1.0
+    graph_before = nx.path_graph(['A', 'B', 'C', 'D'])
+    nx.set_edge_attributes(graph_before, 10.0, 'propagation_delay_ms')
+    graph_after = graph_before.copy()
+    graph_after.remove_edge('C', 'D')
+    ts = MockTopologySeries({0.0: graph_before})
+    engine = RoutingEngine(config, ts)
+    lsr = LinkStateRouter(config)
+    engine.add_router('lsr', lsr)
+    engine.initialize()
+
+    ts.snapshots[2.0] = graph_after
+    engine.step_to(2.2)
+    assert lsr.compute_route('A', 'D', 2.2) == ['A', 'B', 'C', 'D']
+    engine.drain_queue_until(3.3)
+    assert lsr.compute_route('A', 'D', 3.3) is None
+
 def test_ls_lazy_spf_holddown_keeps_old_route_until_expiry(config):
     config['routing']['zero_delay'] = True
     config['routing']['spf_holddown_s'] = 2.0

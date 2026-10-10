@@ -24,6 +24,7 @@ class LinkStateRouter(Router):
         self.dirty_since = {}
         self._tables = set()
         self.spf_runs = 0
+        self.boot_spf_runs = 0
         self.active_links = defaultdict(dict)  # node -> {neighbor: cost}
         self._batching = False
         self._batch_dirty_nodes = set()
@@ -119,6 +120,12 @@ class LinkStateRouter(Router):
             >= self.dirty_since[node] + self.spf_holddown
         ):
             self._run_spf(node)
+
+    def warm_up(self):
+        for node in self.engine.nodes:
+            self._ensure_table(node)
+        self.boot_spf_runs = self.spf_runs
+        self.spf_runs = 0
 
     def _run_spf(self, node):
         distances = {node: 0.0}

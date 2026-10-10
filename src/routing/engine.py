@@ -185,6 +185,8 @@ class RoutingEngine:
         for r in self.routers:
             r.end_batch()
         self.run_until(0.0)
+        for r in self.routers:
+            r.warm_up()
         self.boot_mode = False
 
     def link_delay(self, u, v, t):

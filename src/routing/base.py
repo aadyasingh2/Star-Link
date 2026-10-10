@@ -42,6 +42,10 @@ class Router(ABC):
         """Finish a batch of initial topology changes."""
         pass
 
+    def warm_up(self):
+        """Perform optional post-boot initialization."""
+        pass
+
     @abstractmethod
     def compute_route(self, src, dst, t):
         """Instantaneous route resolution at time *t*.
