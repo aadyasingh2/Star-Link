@@ -11,8 +11,8 @@ const EARTH_RADIUS_KM = 6371;
 const EARTH_SCALE = 1 / 1000;
 const FADE_SECONDS = 0.5;
 const NEXT_HOP_NOTE = 'Next-hop info: see Path Explorer.';
-const [meta, positions, linkData, routeData, eventData] = await Promise.all(
-  ['meta.json', 'positions.json', 'links.json', 'routes.json', 'events.json'].map(async (file) => {
+const [meta, positions, linkData, routeData, eventData, summaryData] = await Promise.all(
+  ['meta.json', 'positions.json', 'links.json', 'routes.json', 'events.json', 'summary.json'].map(async (file) => {
     const response = await fetch(`${DATA_ROOT}${file}`);
     if (!response.ok) throw new Error(`Could not load ${file}: ${response.status}`);
     return response.json();
@@ -82,6 +82,8 @@ const state = {
   pathSort: 'hops',
   visibleRoutes: Object.fromEntries(routeNames.map((name) => [name, true])),
 };
+let analyticsView;
+let analyticsLoadPromise;
 
 const root = document.querySelector('#scene-root');
 const scene = new THREE.Scene();
@@ -400,6 +402,7 @@ function setSimulationTime(time) {
   document.querySelector('#link-count').textContent = state.activeLinks.size.toLocaleString();
   if (state.selectedNode !== null) renderInspector(state.selectedNode);
   if (state.activeView === 'Path Explorer') refreshPathExplorer();
+  if (state.activeView === 'Analytics') analyticsView?.updateTime(state.time);
 }
 
 function applyLinkEvent(event) {
@@ -1087,15 +1090,19 @@ function setupInterface() {
       document.querySelectorAll('.nav-item').forEach((item) => item.classList.toggle('active', item === button));
       const isConstellation = state.activeView === 'Constellation';
       const isPathExplorer = state.activeView === 'Path Explorer';
-      document.querySelector('#view-placeholder').hidden = isConstellation || isPathExplorer;
+      const isAnalytics = state.activeView === 'Analytics';
+      document.querySelector('#view-placeholder').hidden = isConstellation || isPathExplorer || isAnalytics;
       document.querySelector('#placeholder-title').textContent = state.activeView;
       document.querySelector('#constellation-panels').classList.toggle(
-        'view-inactive', !isConstellation && !isPathExplorer,
+        'view-inactive', !isConstellation && !isPathExplorer && !isAnalytics,
       );
       document.querySelector('#constellation-panels').classList.toggle('path-mode', isPathExplorer);
+      document.querySelector('#constellation-panels').classList.toggle('analytics-mode', isAnalytics);
       document.querySelector('#path-panel').hidden = !isPathExplorer;
+      document.querySelector('#analytics-dashboard').hidden = !isAnalytics;
       sceneDirty = true;
       if (isPathExplorer) refreshPathExplorer();
+      if (isAnalytics) loadAnalyticsView();
       updateRouteVisibility();
     });
   });
@@ -1157,6 +1164,35 @@ function setupInterface() {
     state.selectedNode = null;
     inspector.hidden = true;
     updateTrail();
+  });
+}
+
+function loadAnalyticsView() {
+  if (analyticsView) {
+    analyticsView.activate();
+    return;
+  }
+  if (!analyticsLoadPromise) {
+    analyticsLoadPromise = import('./analytics.js').then(({ createAnalyticsView }) => {
+      analyticsView = createAnalyticsView({
+        meta,
+        routes: routeData,
+        events: eventData,
+        summary: summaryData,
+        getTime: () => state.time,
+        setTime: setSimulationTime,
+        devMode: import.meta.env.DEV,
+      });
+      return analyticsView;
+    });
+  }
+  analyticsLoadPromise.then((view) => {
+    if (state.activeView === 'Analytics') view.activate();
+  }).catch((error) => {
+    const message = `Analytics could not be loaded: ${error.message}`;
+    document.querySelector('#analytics-error').textContent = message;
+    document.querySelector('#analytics-error').hidden = false;
+    console.error(error);
   });
 }
 

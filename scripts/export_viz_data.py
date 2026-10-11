@@ -454,7 +454,7 @@ def main():
         'nodes': nodes,
         'routers': ['Oracle', *ROUTER_NAMES],
         'router_colours': ROUTER_COLOURS,
-        'provisional': True,
+        'provisional': False,
         'generated_at': dt.datetime.now(dt.timezone.utc).isoformat(),
         'not_measured': NOT_MEASURED,
     }

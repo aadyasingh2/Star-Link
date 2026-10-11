@@ -58,6 +58,65 @@
             <strong id="placeholder-title">Path Explorer</strong>
             <span>Coming next</span>
           </div>
+          <section class="analytics-dashboard" id="analytics-dashboard" hidden aria-label="Simulation analytics">
+            <div class="analytics-error" id="analytics-error" hidden role="alert"></div>
+            <header class="analytics-header glass-panel">
+              <div><span class="eyebrow">SIMULATION ANALYTICS</span><h2>Routing performance</h2></div>
+              <label class="analytics-pair-label">PAIR SCOPE
+                <select id="analytics-pair" aria-label="Analytics ground-station pair"></select>
+              </label>
+            </header>
+            <section class="analytics-panel glass-panel">
+              <div class="analytics-section-heading"><div><span class="eyebrow">HEADLINE METRICS</span><h3>Full-run router comparison</h3></div><span class="analytics-note">Best per column highlighted · SAPR control messages are 0 by design (assumes orbit prediction, no signalling).</span></div>
+              <div class="headline-table-wrap"><table class="headline-table" id="headline-table"></table></div>
+            </section>
+            <div class="analytics-grid">
+              <section class="analytics-panel glass-panel">
+                <div class="analytics-section-heading"><div><span class="eyebrow">ROUTE QUALITY</span><h3>Outcome classes</h3></div></div>
+                <div class="chart-box chart-tall" id="quality-chart"></div>
+              </section>
+              <section class="analytics-panel glass-panel">
+                <div class="analytics-section-heading"><div><span class="eyebrow">ROUTE QUALITY</span><h3>Near-optimal routes</h3></div></div>
+                <div class="chart-box chart-tall" id="near-optimal-chart"></div>
+              </section>
+              <section class="analytics-panel glass-panel">
+                <div class="analytics-section-heading"><div><span class="eyebrow">ACTUAL DELAY</span><h3>Mean and p99 delay · ms</h3></div></div>
+                <div class="chart-box" id="delay-chart"></div>
+              </section>
+              <section class="analytics-panel glass-panel">
+                <div class="analytics-section-heading"><div><span class="eyebrow">ACTUAL DELAY</span><h3>Mean stretch vs oracle</h3></div></div>
+                <div class="chart-box" id="stretch-chart"></div>
+              </section>
+              <section class="analytics-panel glass-panel">
+                <div class="analytics-section-heading"><div><span class="eyebrow">CONTROL OVERHEAD</span><h3>Messages and boot messages</h3></div></div>
+                <div class="chart-box" id="messages-chart"></div>
+                <p class="analytics-note">Whole-run counters only; the export contains no per-pair overhead.</p>
+              </section>
+              <section class="analytics-panel glass-panel">
+                <div class="analytics-section-heading"><div><span class="eyebrow">CONTROL OVERHEAD</span><h3>Control bytes</h3></div></div>
+                <div class="chart-box" id="bytes-chart"></div>
+                <p class="analytics-note">Whole-run counters only; the export contains no per-pair overhead.</p>
+              </section>
+              <section class="analytics-panel glass-panel analytics-stability">
+                <div class="analytics-section-heading"><div><span class="eyebrow">ROUTE STABILITY</span><h3>Route changes per minute</h3></div></div>
+                <div class="chart-box" id="stability-chart"></div>
+                <div class="analytics-section-heading timeline-heading"><div><span class="eyebrow">SELECTED-PAIR TIMELINE</span><h3>Outcome class by second</h3></div></div>
+                <div class="chart-box timeline-chart" id="timeline-chart"></div>
+              </section>
+              <section class="analytics-panel glass-panel">
+                <div class="analytics-section-heading"><div><span class="eyebrow">PER-PAIR BREAKDOWN</span><h3 id="pair-breakdown-title">All pairs</h3></div></div>
+                <div class="pair-breakdown-table-wrap"><table class="pair-breakdown-table" id="pair-breakdown-table"></table></div>
+              </section>
+              <section class="analytics-panel glass-panel not-measured-panel">
+                <div class="analytics-section-heading"><div><span class="eyebrow">SCOPE LIMITS</span><h3>Not measured</h3></div></div>
+                <div class="not-measured-cards" id="not-measured-cards"></div>
+              </section>
+              <details class="analytics-panel glass-panel method-panel">
+                <summary><span><span class="eyebrow">DOCUMENTATION</span><strong>Method and limits</strong></span><i aria-hidden="true">⌄</i></summary>
+                <div class="method-content" id="method-content"></div>
+              </details>
+            </div>
+          </section>
           <aside class="right-rail" id="constellation-panels">
             <section class="glass-panel constellation-panel">
               <div class="panel-heading">

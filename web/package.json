@@ -8,6 +8,7 @@
     "build": "vite build"
   },
   "dependencies": {
+    "echarts": "^6.1.0",
     "three": "^0.180.0"
   },
   "devDependencies": {
