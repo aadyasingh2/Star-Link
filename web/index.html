@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07080f" />
+    <title>SAPR Mission Control</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">S</div>
+          <span class="brand-name">ORBITAL<br />NETWORKS</span>
+        </div>
+        <button class="collapse-button" id="sidebar-toggle" aria-label="Collapse navigation">
+          <span aria-hidden="true">‹</span>
+        </button>
+        <div class="nav-caption">OPERATIONS</div>
+        <nav class="nav-list" aria-label="Mission control views">
+          <button class="nav-item active" data-view="Constellation">
+            <span class="nav-icon" aria-hidden="true">◉</span><span>Constellation</span>
+          </button>
+          <button class="nav-item" data-view="Path Explorer">
+            <span class="nav-icon" aria-hidden="true">⌁</span><span>Path Explorer</span>
+          </button>
+          <button class="nav-item" data-view="Network Graph">
+            <span class="nav-icon" aria-hidden="true">⌘</span><span>Network Graph</span>
+          </button>
+          <button class="nav-item" data-view="Events">
+            <span class="nav-icon" aria-hidden="true">≋</span><span>Events</span>
+          </button>
+          <button class="nav-item" data-view="Analytics">
+            <span class="nav-icon" aria-hidden="true">▥</span><span>Analytics</span>
+          </button>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="status-dot"></span><span class="nav-foot-text">SIMULATION DATA</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <section class="scene" id="scene" aria-label="Interactive satellite constellation">
+          <div id="scene-root"></div>
+          <div class="scene-vignette"></div>
+          <header class="topbar">
+            <div class="heading">
+              <div class="eyebrow">MISSION SYSTEMS <span class="eyebrow-separator">/</span> LIVE SIMULATION</div>
+              <h1>SAPR MISSION CONTROL</h1>
+            </div>
+            <div class="header-status">
+              <span class="data-badge" id="provisional-badge" hidden>DV RESULTS PROVISIONAL</span>
+              <span class="header-clock"><i class="status-dot"></i> DATASET · <span id="dataset-duration">600 S</span></span>
+            </div>
+          </header>
+          <div class="view-placeholder" id="view-placeholder" hidden>
+            <span class="eyebrow">MISSION VIEW</span>
+            <strong id="placeholder-title">Path Explorer</strong>
+            <span>Coming next</span>
+          </div>
+          <aside class="right-rail" id="constellation-panels">
+            <section class="glass-panel constellation-panel">
+              <div class="panel-heading">
+                <div><span class="eyebrow">CONSTELLATION</span><h2>Orbital fleet</h2></div>
+                <span class="panel-live"><i class="status-dot"></i> ACTIVE</span>
+              </div>
+              <div class="stat-grid">
+                <div class="stat-cell"><strong id="satellite-count">—</strong><span>SATELLITES</span></div>
+                <div class="stat-cell"><strong id="plane-count">—</strong><span>PLANES</span></div>
+                <div class="stat-cell"><strong id="station-count">—</strong><span>GROUND STATIONS</span></div>
+                <div class="stat-cell"><strong id="link-count">—</strong><span>ACTIVE LINKS</span></div>
+              </div>
+              <div class="orbit-specs">
+                <div><span>ALTITUDE</span><strong id="altitude">—</strong></div>
+                <div><span>INCLINATION</span><strong id="inclination">—</strong></div>
+              </div>
+              <div class="station-list" id="station-list"></div>
+            </section>
+
+            <section class="glass-panel controls-panel">
+              <div class="panel-heading compact-heading">
+                <div><span class="eyebrow">SIMULATION CONTROLS</span><h2>Timeline</h2></div>
+                <span class="clamp-note">CLAMPS AT END</span>
+              </div>
+              <div class="control-row">
+                <button class="transport-button" id="play-button" aria-label="Play simulation">
+                  <span id="play-icon" aria-hidden="true">▶</span>
+                </button>
+                <button class="transport-button" id="reset-button" aria-label="Reset simulation">↺</button>
+                <div class="speed-list" role="group" aria-label="Playback speed">
+                  <button class="speed-button active" data-speed="1">1×</button>
+                  <button class="speed-button" data-speed="10">10×</button>
+                  <button class="speed-button" data-speed="60">60×</button>
+                  <button class="speed-button" data-speed="300">300×</button>
+                </div>
+              </div>
+              <div class="time-readout">
+                <span>SIMULATION TIME</span><strong><span id="time-value">0.0</span><small> SEC</small></strong>
+              </div>
+              <input id="time-slider" class="time-slider" type="range" min="0" max="600" step="0.1" value="0" aria-label="Simulation time" />
+              <div class="range-labels"><span>00:00</span><span id="time-end">10:00</span></div>
+              <div class="zoom-row">
+                <span>VIEW SCALE</span>
+                <div><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-in" aria-label="Zoom in">+</button></div>
+              </div>
+            </section>
+
+            <section class="glass-panel inspector-panel" id="inspector" hidden>
+              <div class="panel-heading inspector-heading">
+                <div><span class="eyebrow">NODE INSPECTOR</span><h2 id="inspector-name">Node</h2></div>
+                <button class="close-button" id="inspector-close" aria-label="Close inspector">×</button>
+              </div>
+              <div id="inspector-content"></div>
+            </section>
+          </aside>
+          <div class="scene-legend">
+            <span><i class="legend-dot satellite-dot"></i>SATELLITES</span>
+            <span><i class="legend-line intra-line"></i>INTRA-PLANE</span>
+            <span><i class="legend-line inter-line"></i>INTER-PLANE</span>
+            <span><i class="legend-dot station-dot"></i>GROUND STATIONS</span>
+          </div>
+          <div class="hover-tooltip" id="hover-tooltip" hidden></div>
+          <div class="fps-readout" id="fps-readout" hidden>— FPS</div>
+          <div class="loading-state" id="loading-state"><span class="loading-indicator"></span> LOADING SIMULATION DATA</div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

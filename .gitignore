@@ -37,6 +37,10 @@ results/
 *.pdf
 *.png
 
+# Web app build artifacts
+/web/node_modules/
+/web/dist/
+
 # IDEs
 .idea/
 .vscode/
