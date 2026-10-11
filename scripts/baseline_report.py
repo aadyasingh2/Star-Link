@@ -1,5 +1,9 @@
 import argparse
+import cProfile
+import csv
+import io
 import os
+import pstats
 import random
 import sys
 import time
@@ -13,6 +17,7 @@ from src.routing.distance_vector import DistanceVectorRouter
 from src.routing.engine import RoutingEngine
 from src.routing.evaluation import classify, oracle_path, path_delay_ms
 from src.routing.link_state import LinkStateRouter
+from src.routing.sapr import SAPRRouter
 
 
 PAIRS = (
@@ -106,21 +111,27 @@ def make_row(name, metrics, duration_s, control_messages=0, control_bytes=0,
     ]
 
 
-def print_table(headers, rows):
+def format_table(headers, rows):
     widths = [
         max(len(header), *(len(row[index]) for row in rows))
         for index, header in enumerate(headers)
     ]
-    print(' | '.join(header.ljust(widths[index]) for index, header in enumerate(headers)))
-    print('-+-'.join('-' * width for width in widths))
-    for row in rows:
-        print(' | '.join(value.ljust(widths[index]) for index, value in enumerate(row)))
+    lines = [
+        ' | '.join(header.ljust(widths[index]) for index, header in enumerate(headers)),
+        '-+-'.join('-' * width for width in widths),
+    ]
+    lines.extend(
+        ' | '.join(value.ljust(widths[index]) for index, value in enumerate(row))
+        for row in rows
+    )
+    return '\n'.join(lines)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--duration', type=float, default=600.0)
     parser.add_argument('--step', type=float, default=None)
+    parser.add_argument('--out', default='results/comparison_600s.txt')
     args = parser.parse_args()
 
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -136,34 +147,34 @@ def main():
     random.seed(seed)
     np.random.seed(seed)
     overall_started = time.perf_counter()
-    print(f'seed={seed}')
-    for key, value in flatten_config(config):
-        print(f'{key}={value}')
 
     constellation = Constellation(config)
     topology = TopologySeries(config, constellation)
     lsr = LinkStateRouter(config)
     dvr = DistanceVectorRouter(config)
-    engine = RoutingEngine(config, topology, [lsr, dvr])
+    sapr = SAPRRouter(config)
+    engine = RoutingEngine(config, topology, [lsr, dvr, sapr])
 
     boot_started = time.perf_counter()
     engine.initialize()
     boot_seconds = time.perf_counter() - boot_started
-    print(f'boot_seconds={boot_seconds:.3f}')
 
     router_metrics = {
         'Oracle': new_metrics(),
         'LinkState': new_metrics(),
         'DistanceVector': new_metrics(),
+        'SAPR': new_metrics(),
     }
     pair_metrics = {
         pair: {
             name: new_metrics()
-            for name in ('Oracle', 'LinkState', 'DistanceVector')
+            for name in ('Oracle', 'LinkState', 'DistanceVector', 'SAPR')
         }
         for pair in PAIRS
     }
-    routers = (('LinkState', lsr), ('DistanceVector', dvr))
+    routers = (('LinkState', lsr), ('DistanceVector', dvr), ('SAPR', sapr))
+    sample_rows = []
+    sapr_profiler = cProfile.Profile()
     sample_time = step
     while sample_time <= args.duration + 1e-9:
         engine.step_to(sample_time)
@@ -183,8 +194,18 @@ def main():
                 pair_metrics[key]['Oracle'], key, truth_path, 'correct',
                 oracle_actual_delay, oracle_exists, truth_delay,
             )
+            sample_rows.append([
+                sample_time, f'{src}->{dst}', 'Oracle',
+                'correct' if oracle_exists else 'oracle_unreachable',
+                oracle_actual_delay,
+            ])
             for name, router in routers:
-                route = router.compute_route(src, dst, sample_time)
+                if name == 'SAPR':
+                    sapr_profiler.enable()
+                    route = router.compute_route(src, dst, sample_time)
+                    sapr_profiler.disable()
+                else:
+                    route = router.compute_route(src, dst, sample_time)
                 failure = router.last_failure
                 category = classify(
                     route, failure, snapshot, truth_path, truth_delay
@@ -200,6 +221,19 @@ def main():
                     pair_metrics[key][name], key, route, category, actual_delay,
                     oracle_exists, truth_delay,
                 )
+                sample_rows.append([
+                    sample_time, f'{src}->{dst}', name,
+                    category if oracle_exists else 'oracle_unreachable',
+                    actual_delay,
+                ])
+        if time.perf_counter() - overall_started > 480.0:
+            sapr_stats = io.StringIO()
+            pstats.Stats(sapr_profiler, stream=sapr_stats).sort_stats(
+                'cumulative'
+            ).print_stats(15)
+            print('SAPR profiling output:')
+            print(sapr_stats.getvalue(), end='')
+            return
         sample_time += step
 
     headers = [
@@ -222,23 +256,56 @@ def main():
             dvr.dropped_message_count, None,
             engine.cost_events_generated, dvr.boot_message_count,
         ),
+        make_row(
+            'SAPR', router_metrics['SAPR'], args.duration,
+            sapr.control_message_count, sapr.control_bytes_count,
+            sapr.dropped_message_count, None,
+            engine.cost_events_generated, sapr.boot_message_count,
+        ),
     ]
-    print_table(headers, rows)
-    print('Per-pair breakdown (router: class counts; oracle_unreachable; mean actual delay ms)')
+    output_lines = [
+        f'seed={seed}',
+        *(f'{key}={value}' for key, value in flatten_config(config)),
+        f'boot_seconds={boot_seconds:.3f}',
+        format_table(headers, rows),
+        'Per-pair breakdown (router: class counts; oracle_unreachable; mean actual delay ms)',
+    ]
     for pair in PAIRS:
-        print(f'{pair[0]} -> {pair[1]}')
-        for name in ('Oracle', 'LinkState', 'DistanceVector'):
+        output_lines.append(f'{pair[0]} -> {pair[1]}')
+        for name in ('Oracle', 'LinkState', 'DistanceVector', 'SAPR'):
             metrics = pair_metrics[pair][name]
             class_counts = ', '.join(
                 f'{category}={metrics["classes"][category]}'
                 for category in CLASSES
             )
-            print(
+            output_lines.append(
                 f'  {name}: {class_counts}; '
                 f'oracle_unreachable={metrics["oracle_unreachable"]}; '
                 f'mean_actual_delay_ms={format_metric(mean(metrics["delays"]))}'
             )
-    print(f'total_runtime_seconds={time.perf_counter() - overall_started:.3f}')
+    runtime_s = time.perf_counter() - overall_started
+    output_lines.append(f'total_runtime_seconds={runtime_s:.3f}')
+    output_text = '\n'.join(output_lines) + '\n'
+
+    output_path = args.out
+    if not os.path.isabs(output_path):
+        output_path = os.path.join(root, output_path)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, 'w', encoding='utf-8', newline='') as output_file:
+        output_file.write(output_text)
+
+    csv_path = os.path.splitext(output_path)[0] + '.csv'
+    samples_path = os.path.splitext(output_path)[0] + '_samples.csv'
+    with open(csv_path, 'w', encoding='utf-8', newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(headers)
+        writer.writerows(rows)
+    with open(samples_path, 'w', encoding='utf-8', newline='') as samples_file:
+        writer = csv.writer(samples_file)
+        writer.writerow(['t', 'pair', 'router', 'class', 'delay_ms'])
+        writer.writerows(sample_rows)
+    print(output_text, end='')
+
 
 
 if __name__ == '__main__':

@@ -163,6 +163,11 @@ def test_sapr_lifetime_cache_matches_snapshot_scan(config):
     sapr.compute_route('B', 'D', 0.0)
     assert [t for t in snapshot_calls if t > 0] == future_calls_after_first
 
+    before_extension = sum(t > 1 for t in snapshot_calls)
+    sapr.compute_route('A', 'D', 1.0)
+    after_extension = sum(t > 1 for t in snapshot_calls)
+    assert after_extension - before_extension <= graph.number_of_edges()
+
     for u, v in graph.edges:
         expected = 0
         for offset in range(1, sapr.look_ahead_steps + 1):

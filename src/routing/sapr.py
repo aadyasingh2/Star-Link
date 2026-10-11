@@ -58,25 +58,29 @@ class SAPRRouter(Router):
     def _remaining_lifetime(self, u, v, step):
         key = self._edge_key(u, v)
         cached = self._lifetime_cache.get(key)
+        known_lifetime_steps = 0
+        scan_start = step + 1
         if cached is not None:
             kind, bound = cached
             if kind == 'expires' and step < bound:
                 return max(0, bound - step - 1) * self.step_s
-            if (
-                kind == 'horizon'
-                and step + self.look_ahead_steps <= bound
-            ):
-                return self.look_ahead_steps * self.step_s
+            if kind == 'horizon' and step <= bound:
+                known_lifetime_steps = min(
+                    self.look_ahead_steps, bound - step
+                )
+                if known_lifetime_steps == self.look_ahead_steps:
+                    return known_lifetime_steps * self.step_s
+                scan_start = bound + 1
 
         horizon_step = step + self.look_ahead_steps
-        for offset in range(1, self.look_ahead_steps + 1):
-            future = self.engine.topology_series.get_snapshot(step + offset)
+        for future_step in range(scan_start, horizon_step + 1):
+            future = self.engine.topology_series.get_snapshot(future_step)
             if not future.has_edge(u, v):
-                expiry_step = step + offset
-                self._lifetime_cache[key] = ('expires', expiry_step)
-                return (offset - 1) * self.step_s
+                self._lifetime_cache[key] = ('expires', future_step)
+                return (future_step - step - 1) * self.step_s
+            known_lifetime_steps += 1
         self._lifetime_cache[key] = ('horizon', horizon_step)
-        return self.look_ahead_steps * self.step_s
+        return known_lifetime_steps * self.step_s
 
     def _edge_cost(self, snapshot, u, v, step, enforce_guard):
         lifetime_s = self._remaining_lifetime(u, v, step)
