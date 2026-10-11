@@ -34,7 +34,8 @@
 - `links.json.events[].link_id`: link-table index.
 - `links.json.delay_times_s`: times corresponding to sampled delay frames.
 - `links.json.delay_ms`: per-frame delays aligned with `links` (null means down).
-- `links.json.remaining_lifetime`: capped seconds and cap flags per link/frame.
+- Link and event delay values are rounded to 0.001 ms for export.
+- `links.json.remaining_lifetime`: capped seconds (rounded to 0.1 s) and cap flags per link/frame.
 - `links.json.look_ahead_cap_s`: lifetime cap used for export.
 - `routes.json.pairs`: all unordered ground-station pairs and node IDs.
 - `routes.json.routers`: router order used by each sample row.

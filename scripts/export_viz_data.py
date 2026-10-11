@@ -112,7 +112,7 @@ def graph_edges(graph, node_index):
             'a': key[0],
             'b': key[1],
             'type': edge_type(graph, u, v),
-            'delay_ms': float(data['propagation_delay_ms']),
+            'delay_ms': round(float(data['propagation_delay_ms']), 3),
         }
     return extracted
 
@@ -304,7 +304,7 @@ def main():
             u, v, 0, float(config['sapr']['look_ahead_window_s'])
         )
         initial_lifetimes[key] = {
-            'seconds': min(lifetime, float(config['sapr']['look_ahead_window_s'])),
+            'seconds': round(min(lifetime, float(config['sapr']['look_ahead_window_s'])), 1),
             'capped': lifetime >= float(config['sapr']['look_ahead_window_s']),
         }
     delay_frame_maps.append({
@@ -331,7 +331,7 @@ def main():
                 'a': key[0],
                 'b': key[1],
                 'type': event_type,
-                'delay_ms': delay_s * 1000.0 if delay_s is not None else None,
+                'delay_ms': round(delay_s * 1000.0, 3) if delay_s is not None else None,
             })
         if second in positions_times:
             delay_row = {}
@@ -425,7 +425,7 @@ def main():
         key = tuple(sorted((node_index[u], node_index[v])))
         link_events.append({
             't': event_t, 'a': key[0], 'b': key[1], 'type': event_type,
-            'delay_ms': delay_s * 1000.0 if delay_s is not None else None,
+            'delay_ms': round(delay_s * 1000.0, 3) if delay_s is not None else None,
         })
 
     ordered_keys = sorted(edge_table)
@@ -441,7 +441,14 @@ def main():
         [frame.get(key) for key in ordered_keys] for frame in delay_frame_maps
     ]
     lifetime_frames = [
-        [frame.get(key) for key in ordered_keys] for frame in lifetime_frame_maps
+        [
+            (
+                {**frame[key], 'seconds': round(frame[key]['seconds'], 1)}
+                if key in frame else None
+            )
+            for key in ordered_keys
+        ]
+        for frame in lifetime_frame_maps
     ]
 
     summary = build_summary(router_metrics, pair_metrics, args.duration, routers, engine)
@@ -545,7 +552,8 @@ def main():
             '- `links.json.events[].link_id`: link-table index.\n'
             '- `links.json.delay_times_s`: times corresponding to sampled delay frames.\n'
             '- `links.json.delay_ms`: per-frame delays aligned with `links` (null means down).\n'
-            '- `links.json.remaining_lifetime`: capped seconds and cap flags per link/frame.\n'
+            '- Link and event delay values are rounded to 0.001 ms for export.\n'
+            '- `links.json.remaining_lifetime`: capped seconds (rounded to 0.1 s) and cap flags per link/frame.\n'
             '- `links.json.look_ahead_cap_s`: lifetime cap used for export.\n'
             '- `routes.json.pairs`: all unordered ground-station pairs and node IDs.\n'
             '- `routes.json.routers`: router order used by each sample row.\n'

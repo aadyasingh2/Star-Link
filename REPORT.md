@@ -123,6 +123,18 @@ The run reports zero generated cost events for the 2 ms threshold. In a separate
 - The SAPR metric and policy are this project's design, not a claim to reproduce a standard or published protocol.
 - The browser app visualizes exported simulation data; it does not run the Python simulation interactively or connect to a live API/database.
 
+## Mapping to the project spec
+
+| Spec metric | Where measured | Status |
+|---|---|---|
+| End-to-end latency | Mean and p99 actual path delay in the baseline report and `results/comparison_600s.csv`; route-level | Measured |
+| Packet loss at handover | Blackhole and loop sample percentages plus dropped control messages in the baseline report; route-level proxy, not a packet simulation | Proxy only; no packet simulation |
+| Route changes per minute | Baseline route-path change counter, reported per minute | Measured |
+| Control messages | Baseline control-message counters; control bytes and boot messages reported separately | Measured using the configured accounting model |
+| TCP throughput | Not produced by the simulator | Not implemented; future work |
+
+The `src/sim` and `src/tcp` packages are intentionally empty placeholder packages.
+
 ## 8. Conclusion
 
 For this seed and three-pair, 600-second experiment, reactive Link State and Distance Vector are within 1 ms of oracle delay in roughly four out of five samples. SAPR is less near-optimal overall but changes routes less often and has zero modelled signalling under its perfect-prediction assumption. The results demonstrate a stability/quality trade-off in this simulator; broader claims require multiple seeds, more scenarios, prediction error, and packet-level evaluation.

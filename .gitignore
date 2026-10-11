@@ -23,7 +23,7 @@ MANIFEST
 
 # Environment
 .env
-.venv
+.venv/
 env/
 venv/
 ENV/
@@ -32,14 +32,15 @@ venv.bak/
 
 # Results and data
 results/
+.pytest_cache/
 *.csv
 *.log
 *.pdf
 *.png
 
 # Web app build artifacts
-/web/node_modules/
-/web/dist/
+web/node_modules/
+web/dist/
 
 # IDEs
 .idea/
