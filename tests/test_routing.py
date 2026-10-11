@@ -7,6 +7,7 @@ from pathlib import Path
 from src.routing.engine import RoutingEngine
 from src.routing.link_state import LinkStateRouter
 from src.routing.distance_vector import DistanceVectorRouter
+from src.routing.sapr import SAPRRouter
 from src.routing.evaluation import classify, oracle_path, path_delay_ms
 from src.constellation import Constellation, TopologySeries
 
@@ -33,8 +34,145 @@ def config():
             'dv_infinity': 10000.0,
             'cost_change_threshold_ms': 2.0,
         },
-        'simulation': {'random_seed': 42}
+        'simulation': {'random_seed': 42, 'timestep_s': 1.0},
+        'sapr': {
+            'look_ahead_window_s': 5.0,
+            'alpha': 1.0,
+            'guard_time_s': 2.0,
+            'hysteresis_margin_ms': 1.0,
+            'latency_bound_multiplier': 1.2,
+        },
     }
+
+def test_sapr_avoids_guarded_failure_and_reactive_router_goes_stale(config):
+    before = nx.Graph()
+    before.add_edge('A', 'B', propagation_delay_ms=0.5)
+    before.add_edge('B', 'D', propagation_delay_ms=0.5)
+    before.add_edge('A', 'C', propagation_delay_ms=0.3)
+    before.add_edge('C', 'E', propagation_delay_ms=0.3)
+    before.add_edge('E', 'D', propagation_delay_ms=0.4)
+    after = nx.Graph()
+    after.add_edge('B', 'D', propagation_delay_ms=0.5)
+    after.add_edge('A', 'C', propagation_delay_ms=0.3)
+    after.add_edge('C', 'E', propagation_delay_ms=0.3)
+    after.add_edge('E', 'D', propagation_delay_ms=0.4)
+    topology = MockTopologySeries({0.0: before, 1.0: after})
+    engine = RoutingEngine(config, topology)
+    sapr = SAPRRouter(config)
+    lsr = LinkStateRouter(config)
+    engine.add_router('sapr', sapr)
+    engine.add_router('lsr', lsr)
+    engine.initialize()
+
+    assert sapr.compute_route('A', 'D', 0.0) == ['A', 'C', 'E', 'D']
+    assert lsr.compute_route('A', 'D', 0.0) == ['A', 'B', 'D']
+    engine.step_to(1.2)
+    true_snapshot = topology.get_snapshot(1.0)
+    sapr_path = sapr.compute_route('A', 'D', 1.2)
+    lsr_path = lsr.compute_route('A', 'D', 1.2)
+
+    assert classify(
+        sapr_path, sapr.last_failure, true_snapshot,
+        ['A', 'C', 'E', 'D'], 1.0,
+    ) == 'correct'
+    assert classify(
+        lsr_path, lsr.last_failure, true_snapshot,
+        ['A', 'C', 'E', 'D'], 1.0,
+    ) in ('blackhole', 'stale_working')
+
+def test_sapr_hysteresis_respects_margin(config):
+    config['sapr']['guard_time_s'] = 0.0
+    g0 = nx.Graph()
+    for u, v, delay in (
+        ('A', 'B', 1.0), ('B', 'D', 1.0),
+        ('A', 'C', 1.5), ('C', 'D', 1.0),
+    ):
+        g0.add_edge(u, v, propagation_delay_ms=delay)
+    g1 = g0.copy()
+    g1['A']['B']['propagation_delay_ms'] = 1.6
+    g2 = g1.copy()
+    g2['A']['B']['propagation_delay_ms'] = 3.0
+    engine = RoutingEngine(config, MockTopologySeries({0.0: g0, 1.0: g1, 2.0: g2}))
+    sapr = SAPRRouter(config)
+    engine.add_router('sapr', sapr)
+    engine.initialize()
+
+    assert sapr.compute_route('A', 'D', 0.0) == ['A', 'B', 'D']
+    assert sapr.compute_route('A', 'D', 1.0) == ['A', 'B', 'D']
+    assert sapr.compute_route('A', 'D', 2.0) == ['A', 'C', 'D']
+
+def test_sapr_latency_bound_rejects_stable_slow_path(config):
+    config['sapr'].update({
+        'guard_time_s': 0.0,
+        'alpha': 2.0,
+        'latency_bound_multiplier': 1.2,
+    })
+    fast = nx.Graph()
+    fast.add_edge('A', 'B', propagation_delay_ms=5.0)
+    fast.add_edge('B', 'D', propagation_delay_ms=5.0)
+    fast.add_edge('A', 'C', propagation_delay_ms=6.5)
+    fast.add_edge('C', 'D', propagation_delay_ms=6.5)
+    failed = nx.Graph()
+    failed.add_edge('B', 'D', propagation_delay_ms=5.0)
+    failed.add_edge('A', 'C', propagation_delay_ms=6.5)
+    failed.add_edge('C', 'D', propagation_delay_ms=6.5)
+    engine = RoutingEngine(config, MockTopologySeries({0.0: fast, 1.0: failed}))
+    sapr = SAPRRouter(config)
+    engine.add_router('sapr', sapr)
+    engine.initialize()
+
+    assert sapr.compute_route('A', 'D', 0.0) == ['A', 'B', 'D']
+
+def test_sapr_never_transits_ground_station(config):
+    graph = nx.Graph()
+    graph.add_node('gs_mid', type='ground_station')
+    graph.add_node('A', type='satellite')
+    graph.add_node('D', type='satellite')
+    graph.add_edge('A', 'gs_mid', propagation_delay_ms=1.0)
+    graph.add_edge('gs_mid', 'D', propagation_delay_ms=1.0)
+    engine = RoutingEngine(config, MockTopologySeries({0.0: graph}))
+    sapr = SAPRRouter(config)
+    engine.add_router('sapr', sapr)
+    engine.initialize()
+
+    assert sapr.compute_route('A', 'D', 0.0) is None
+    assert sapr.last_failure == 'no_route'
+
+def test_sapr_lifetime_cache_matches_snapshot_scan(config):
+    graph = nx.Graph()
+    graph.add_edge('A', 'B', propagation_delay_ms=1.0)
+    graph.add_edge('B', 'D', propagation_delay_ms=1.0)
+    graph.add_edge('A', 'C', propagation_delay_ms=2.0)
+    graph.add_edge('C', 'D', propagation_delay_ms=2.0)
+    topology = MockTopologySeries({0.0: graph})
+    snapshot_calls = []
+    get_snapshot = topology.get_snapshot
+
+    def counted_get_snapshot(t):
+        snapshot_calls.append(t)
+        return get_snapshot(t)
+
+    topology.get_snapshot = counted_get_snapshot
+    engine = RoutingEngine(config, topology)
+    sapr = SAPRRouter(config)
+    engine.add_router('sapr', sapr)
+    engine.initialize()
+
+    first_path = sapr.compute_route('A', 'D', 0.0)
+    future_calls_after_first = [t for t in snapshot_calls if t > 0]
+    sapr.compute_route('B', 'D', 0.0)
+    assert [t for t in snapshot_calls if t > 0] == future_calls_after_first
+
+    for u, v in graph.edges:
+        expected = 0
+        for offset in range(1, sapr.look_ahead_steps + 1):
+            if not get_snapshot(offset).has_edge(u, v):
+                break
+            expected += 1
+        sapr._lifetime_cache.clear()
+        assert sapr._remaining_lifetime(u, v, 0) == expected
+    sapr._lifetime_cache.clear()
+    assert sapr.compute_route('A', 'D', 0.0) == first_path
 
 def test_classify_correct_for_equal_delay_alternative(config):
     graph = nx.Graph()
