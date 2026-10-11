@@ -1,16 +1,18 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import './style.css';
 
 const DATA_ROOT = '/data/';
 const EARTH_RADIUS_KM = 6371;
 const EARTH_SCALE = 1 / 1000;
 const FADE_SECONDS = 0.5;
-const ROUTER_UNUSED_PATH_NOTE = 'See Path Explorer (coming next)';
-
-const [meta, positions, linkData] = await Promise.all(
-  ['meta.json', 'positions.json', 'links.json'].map(async (file) => {
+const NEXT_HOP_NOTE = 'Next-hop info: see Path Explorer.';
+const [meta, positions, linkData, routeData, eventData] = await Promise.all(
+  ['meta.json', 'positions.json', 'links.json', 'routes.json', 'events.json'].map(async (file) => {
     const response = await fetch(`${DATA_ROOT}${file}`);
     if (!response.ok) throw new Error(`Could not load ${file}: ${response.status}`);
     return response.json();
@@ -21,10 +23,34 @@ const nodes = meta.nodes;
 const frameTimes = positions.times_s;
 const frames = positions.frames_km;
 const links = linkData.links;
-const events = [...linkData.events].sort((a, b) => a.t - b.t);
+const linkEvents = [...linkData.events].sort((a, b) => a.t - b.t);
+const routeEvents = eventData.events;
+const routeChangeCounts = new Map();
+for (const event of routeEvents) {
+  if (event.type === 'route_change') {
+    routeChangeCounts.set(event.pair, (routeChangeCounts.get(event.pair) ?? 0) + 1);
+  }
+}
 const duration = Number(meta.duration_s);
 const stationStart = nodes.findIndex((node) => node.type === 'ground_station');
 const stationNodes = nodes.slice(stationStart);
+const stationByName = new Map(stationNodes.map((station) => [station.name, station]));
+const routeNames = routeData.routers;
+const routeColours = {
+  Oracle: '#ffffff',
+  LinkState: '#22d3ee',
+  DistanceVector: '#fbbf24',
+  SAPR: '#8b5cf6',
+};
+const pairIndexes = new Map();
+routeData.pairs.forEach((pair, index) => {
+  pairIndexes.set(`${pair.src}|${pair.dst}`, index);
+  pairIndexes.set(`${pair.dst}|${pair.src}`, index);
+});
+const defaultPair = routeData.pairs[0];
+const defaultSource = stationNodes.find((station) => station.id === defaultPair?.src) ?? stationNodes[0];
+const defaultTarget = stationNodes.find((station) => station.id === defaultPair?.dst) ?? stationNodes[1];
+const linkIndexes = new Map(links.map((link, index) => [`${link.a}|${link.b}`, index]));
 const neighborLinks = Array.from({ length: nodes.length }, () => []);
 links.forEach((link, id) => {
   neighborLinks[link.a].push({ node: link.b, link: id });
@@ -43,6 +69,18 @@ const state = {
   hoveredNode: null,
   fadeOutAt: new Map(),
   activeView: 'Constellation',
+  pathSource: defaultSource?.name ?? '',
+  pathTarget: defaultTarget?.name ?? '',
+  pathContextCache: null,
+  pathDisplayContext: null,
+  pathDisplayLinkFrame: -1,
+  pathGeometryPairIndex: -1,
+  pathGeometryFrameIndex: -1,
+  pathGeometryReverse: false,
+  pathGeometryLinkFrame: -1,
+  reversePath: false,
+  pathSort: 'hops',
+  visibleRoutes: Object.fromEntries(routeNames.map((name) => [name, true])),
 };
 
 const root = document.querySelector('#scene-root');
@@ -222,6 +260,55 @@ const linkLines = new THREE.LineSegments(linkGeometry, linkMaterial);
 linkLines.frustumCulled = false;
 scene.add(linkLines);
 
+const routeObjects = {};
+for (const [index, name] of routeNames.entries()) {
+  const color = routeColours[name] ?? meta.router_colours[name] ?? '#ffffff';
+  const glowMaterial = new LineMaterial({
+    color, linewidth: 9, transparent: true, opacity: 0.2,
+    depthTest: false, blending: THREE.AdditiveBlending,
+  });
+  const coreMaterial = new LineMaterial({
+    color, linewidth: 3, transparent: true, opacity: 0.95,
+    depthTest: false, blending: THREE.AdditiveBlending,
+  });
+  const pulseMaterial = new LineMaterial({
+    color, linewidth: 2.4, transparent: true, opacity: 0.72,
+    depthTest: false, blending: THREE.AdditiveBlending,
+    dashed: true, dashSize: 0.12, gapSize: 0.9,
+  });
+  const emptyGeometry = new LineGeometry();
+  const glow = new Line2(emptyGeometry, glowMaterial);
+  const core = new Line2(emptyGeometry, coreMaterial);
+  const pulse = new Line2(emptyGeometry, pulseMaterial);
+  for (const line of [glow, core, pulse]) {
+    line.renderOrder = 6 + index;
+    line.frustumCulled = false;
+    scene.add(line);
+  }
+  const downMaterial = new LineMaterial({
+    color: '#ff4d5a', linewidth: 5, transparent: true, opacity: 0.95,
+    depthTest: false, blending: THREE.AdditiveBlending,
+  });
+  const downLine = new Line2(new LineGeometry(), downMaterial);
+  downLine.renderOrder = 11 + index;
+  downLine.frustumCulled = false;
+  scene.add(downLine);
+  routeObjects[name] = {
+    glow, core, pulse, downLine, pulseMaterial, routeKey: '',
+    positions: [], downPositions: [], downHops: [], pathIndexes: null,
+  };
+}
+const endpointGeometry = new THREE.SphereGeometry(0.105, 12, 8);
+const sourceMarker = new THREE.Mesh(endpointGeometry, new THREE.MeshBasicMaterial({
+  color: '#ff4055', blending: THREE.AdditiveBlending,
+}));
+const targetMarker = new THREE.Mesh(endpointGeometry, new THREE.MeshBasicMaterial({
+  color: '#35ec88', blending: THREE.AdditiveBlending,
+}));
+sourceMarker.renderOrder = 12;
+targetMarker.renderOrder = 12;
+scene.add(sourceMarker, targetMarker);
+
 const stationLabels = [];
 stationNodes.forEach((station, index) => {
   const label = document.createElement('div');
@@ -296,13 +383,13 @@ function setSimulationTime(time) {
     state.activeLinks = new Set(linkData.initial_link_ids);
     state.fadeOutAt.clear();
     state.eventCursor = 0;
-    while (state.eventCursor < events.length && events[state.eventCursor].t <= state.time) {
-      applyLinkEvent(events[state.eventCursor]);
+    while (state.eventCursor < linkEvents.length && linkEvents[state.eventCursor].t <= state.time) {
+      applyLinkEvent(linkEvents[state.eventCursor]);
       state.eventCursor += 1;
     }
   } else {
-    while (state.eventCursor < events.length && events[state.eventCursor].t <= state.time) {
-      applyLinkEvent(events[state.eventCursor]);
+    while (state.eventCursor < linkEvents.length && linkEvents[state.eventCursor].t <= state.time) {
+      applyLinkEvent(linkEvents[state.eventCursor]);
       state.eventCursor += 1;
     }
   }
@@ -312,6 +399,7 @@ function setSimulationTime(time) {
   document.querySelector('#time-value').textContent = state.time.toFixed(1);
   document.querySelector('#link-count').textContent = state.activeLinks.size.toLocaleString();
   if (state.selectedNode !== null) renderInspector(state.selectedNode);
+  if (state.activeView === 'Path Explorer') refreshPathExplorer();
 }
 
 function applyLinkEvent(event) {
@@ -358,6 +446,7 @@ function updateSceneGeometry() {
     item.object.position.copy(interpolatePosition(item.nodeIndex, time, labelVector).multiplyScalar(1.04));
   }
   updateTrail();
+  if (state.activeView === 'Path Explorer') updateRouteGeometry();
 }
 
 function updateTrail() {
@@ -389,6 +478,395 @@ function updateTrail() {
   trailGeometry.attributes.position.needsUpdate = true;
   trail.computeLineDistances();
   trail.visible = out > 1;
+}
+
+function selectedPairContext() {
+  const routeTime = THREE.MathUtils.clamp(
+    Math.floor(state.time), routeData.times_s[0], routeData.times_s.at(-1),
+  );
+  const frameIndex = frameBracketFor(routeData.times_s, routeTime);
+  const cached = state.pathContextCache;
+  if (cached
+    && cached.sourceName === state.pathSource
+    && cached.targetName === state.pathTarget
+    && cached.frameIndex === frameIndex
+    && cached.reverseToggle === state.reversePath) return cached;
+  const source = stationByName.get(state.pathSource);
+  const target = stationByName.get(state.pathTarget);
+  if (!source || !target || source.id === target.id) return null;
+  const pairIndex = pairIndexes.get(`${source.id}|${target.id}`);
+  if (pairIndex === undefined) return null;
+  const routeSample = routeData.samples[frameIndex][pairIndex];
+  const sourceIndex = nodes.indexOf(source);
+  const targetIndex = nodes.indexOf(target);
+  const reverse = (source.id !== routeData.pairs[pairIndex].src) !== state.reversePath;
+  const context = {
+    source,
+    target,
+    sourceName: state.pathSource,
+    targetName: state.pathTarget,
+    reverseToggle: state.reversePath,
+    reverse,
+    pairIndex,
+    frameIndex,
+    routeSample,
+    displaySourceIndex: reverse ? targetIndex : sourceIndex,
+    displayTargetIndex: reverse ? sourceIndex : targetIndex,
+    key: `${pairIndex}:${frameIndex}:${reverse}`,
+  };
+  state.pathContextCache = context;
+  return context;
+}
+
+function nearestLinkFrame(time) {
+  const framesAt = linkData.delay_times_s;
+  let nearest = 0;
+  for (let index = 1; index < framesAt.length; index += 1) {
+    if (Math.abs(framesAt[index] - time) < Math.abs(framesAt[nearest] - time)) {
+      nearest = index;
+    }
+  }
+  return nearest;
+}
+
+function routePath(context, routerIndex) {
+  const path = context.routeSample.paths[routerIndex];
+  if (!Array.isArray(path) || path.length === 0) return null;
+  return context.reverse ? [...path].reverse() : path;
+}
+
+function linkDelayAtFrame(from, to, frameIndex) {
+  const linkIndex = linkIndexes.get(`${Math.min(from, to)}|${Math.max(from, to)}`);
+  if (linkIndex === undefined) return null;
+  const delay = linkData.delay_ms[frameIndex]?.[linkIndex];
+  return Number.isFinite(delay) ? delay : null;
+}
+
+function routeChangeCount(pairIndex) {
+  return routeChangeCounts.get(pairIndex) ?? 0;
+}
+
+function renderPathCards(context) {
+  const cards = document.querySelector('#path-cards');
+  const comparison = document.querySelector('#path-comparison');
+  const linkFrameIndex = nearestLinkFrame(state.time);
+  const entries = routeNames.map((name, routerIndex) => {
+    const path = routePath(context, routerIndex);
+    const sample = context.routeSample;
+    return {
+      name,
+      routerIndex,
+      path,
+      delay: sample.delay_ms[routerIndex],
+      category: sample.classes[routerIndex],
+      failure: sample.last_failure[routerIndex],
+    };
+  });
+  entries.sort((a, b) => {
+    if (state.pathSort === 'hops') {
+      const hopsA = a.path ? a.path.length - 1 : Infinity;
+      const hopsB = b.path ? b.path.length - 1 : Infinity;
+      return hopsA - hopsB || a.routerIndex - b.routerIndex;
+    }
+    const delayA = Number.isFinite(a.delay) ? a.delay : Infinity;
+    const delayB = Number.isFinite(b.delay) ? b.delay : Infinity;
+    return delayA - delayB || a.routerIndex - b.routerIndex;
+  });
+  cards.innerHTML = entries.map((entry) => {
+    const noRoute = !entry.path || entry.path.length < 2 || entry.category === 'loop';
+    const isDrawable = !noRoute;
+    const reason = entry.failure ?? (noRoute ? 'failure reason unavailable in export' : '');
+    const hops = entry.path ? entry.path.length - 1 : '—';
+    const total = Number.isFinite(entry.delay) ? `${entry.delay.toFixed(3)} ms` : '—';
+    const hopRows = entry.path ? entry.path.slice(0, -1).map((nodeIndex, hopIndex) => {
+      const nextIndex = entry.path[hopIndex + 1];
+      const delay = linkDelayAtFrame(nodeIndex, nextIndex, linkFrameIndex);
+      const down = delay === null;
+      return `<li class="${down ? 'hop-down' : ''}">
+        <span class="hop-number">${hopIndex + 1}</span>
+        <span class="hop-nodes">${escapeHtml(nodes[nodeIndex].name || nodes[nodeIndex].id)} <i>→</i> ${escapeHtml(nodes[nextIndex].name || nodes[nextIndex].id)}</span>
+        <span class="hop-delay">${down ? 'link down at this time' : `${delay.toFixed(3)} ms`}</span>
+      </li>`;
+    }).join('') : '';
+    return `<article class="route-card" data-router="${entry.name}">
+      <div class="route-card-heading">
+        <span class="route-color" style="--route-color:${routeColours[entry.name] ?? '#ffffff'}"></span>
+        <strong>${escapeHtml(entry.name)}</strong>
+        <label class="route-visibility" title="Toggle this router route"><input type="checkbox" data-route-toggle="${escapeHtml(entry.name)}" ${state.visibleRoutes[entry.name] ? 'checked' : ''} /><span>SHOW</span></label>
+      </div>
+      <div class="route-metrics"><span><b>${hops}</b> HOPS</span><span><b>${total}</b> ACTUAL</span><span class="class-chip class-${escapeHtml(entry.category)}">${escapeHtml(entry.category)}</span></div>
+      ${!isDrawable ? `<div class="route-failure">No route drawn${reason ? ` · ${escapeHtml(reason)}` : ''}</div>` : ''}
+      ${entry.path ? `<ol class="hop-list">${hopRows}</ol>` : ''}
+      <div class="route-change-count">route changes in this pair: ${routeChangeCount(context.pairIndex)}</div>
+    </article>`;
+  }).join('');
+  cards.querySelectorAll('[data-route-toggle]').forEach((input) => {
+    input.addEventListener('change', () => {
+      state.visibleRoutes[input.dataset.routeToggle] = input.checked;
+      updateRouteVisibility();
+    });
+  });
+  const oracleDelay = context.routeSample.delay_ms[routeNames.indexOf('Oracle')];
+  comparison.innerHTML = `<span class="eyebrow">ORACLE COMPARISON</span><div class="comparison-items">${
+    routeNames.filter((name) => name !== 'Oracle').map((name) => {
+      const delay = context.routeSample.delay_ms[routeNames.indexOf(name)];
+      const difference = Number.isFinite(delay) && Number.isFinite(oracleDelay)
+        ? `${(delay - oracleDelay).toFixed(3)} ms`
+        : '—';
+      const stretch = Number.isFinite(delay) && Number.isFinite(oracleDelay) && oracleDelay !== 0
+        ? `${(delay / oracleDelay).toFixed(3)}×`
+        : '—';
+      return `<span><i class="route-color" style="--route-color:${routeColours[name]}"></i>${escapeHtml(name)} <b>Δ ${difference}</b> <small>${stretch}</small></span>`;
+    }).join('')
+  }</div>`;
+}
+
+function renderRouteEventStrip(context) {
+  const wrap = document.querySelector('#event-strip-wrap');
+  const strip = document.querySelector('#event-strip');
+  wrap.hidden = false;
+  const pairEvents = routeEvents.filter((event) =>
+    event.type === 'route_change' && event.pair === context.pairIndex
+  );
+  document.querySelector('#event-strip-count').textContent = `${pairEvents.length} EVENTS`;
+  const laneEnds = routeNames.map(() => []);
+  const placements = pairEvents.map((event) => {
+    const name = event.router;
+    const routerIndex = Math.max(0, routeNames.indexOf(name));
+    const x = THREE.MathUtils.clamp(event.t / duration, 0, 1) * strip.clientWidth;
+    const lanes = laneEnds[routerIndex];
+    let lane = lanes.findIndex((lastX) => x - lastX >= 6);
+    if (lane < 0) lane = lanes.length;
+    lanes[lane] = x;
+    return { event, name, routerIndex, lane };
+  });
+  const laneOffsets = [];
+  let totalLanes = 0;
+  for (const lanes of laneEnds) {
+    laneOffsets.push(totalLanes);
+    totalLanes += Math.max(1, lanes.length);
+  }
+  strip.style.height = `${totalLanes * 7 + 2}px`;
+  strip.innerHTML = placements.map(({ event, name, routerIndex, lane }) => {
+    const left = THREE.MathUtils.clamp(event.t / duration, 0, 1) * 100;
+    const top = laneOffsets[routerIndex] * 7 + lane * 7 + 1;
+    return `<button class="event-tick" data-event-time="${event.t}" title="${escapeHtml(name)} route change · ${Number(event.t).toFixed(0)} s" style="left:${left}%;top:${top}px;--route-color:${routeColours[name] ?? '#ffffff'}" aria-label="${escapeHtml(name)} route change at ${event.t} seconds"></button>`;
+  }).join('');
+  strip.querySelectorAll('[data-event-time]').forEach((tick) => {
+    tick.addEventListener('click', () => {
+      setSimulationTime(Number(tick.dataset.eventTime));
+    });
+  });
+}
+
+function refreshPathExplorer() {
+  const context = selectedPairContext();
+  if (!context) {
+    document.querySelector('#path-cards').innerHTML = '<div class="pair-unavailable">Choose two different ground stations present in routes.json.</div>';
+    document.querySelector('#path-comparison').innerHTML = '';
+    document.querySelector('#event-strip').replaceChildren();
+    document.querySelector('#event-strip-count').textContent = '0 EVENTS';
+    state.eventPairIndex = -1;
+    state.pathDisplayContext = null;
+    routeNames.forEach((name) => setRouteVisible(name, false));
+    return;
+  }
+  const linkFrameIndex = nearestLinkFrame(state.time);
+  if (state.pathDisplayContext !== context || state.pathDisplayLinkFrame !== linkFrameIndex) {
+    state.pathDisplayContext = context;
+    state.pathDisplayLinkFrame = linkFrameIndex;
+    renderPathCards(context);
+  }
+  if (state.eventPairIndex !== context.pairIndex) {
+    state.eventPairIndex = context.pairIndex;
+    renderRouteEventStrip(context);
+  }
+}
+
+function installRouteGeometry(object, positions, geometryType = 'route') {
+  if (!positions.length || (geometryType === 'route' && positions.length < 2)) {
+    object.routeKey = `${object.routeKey}:empty`;
+    object.positions = [];
+    object.glow.visible = false;
+    object.core.visible = false;
+    object.pulse.visible = false;
+    object.downLine.visible = false;
+    return;
+  }
+  const geometry = new LineGeometry();
+  geometry.setPositions(positions);
+  if (geometryType === 'route') {
+    const previous = object.glow.geometry;
+    object.glow.geometry = geometry;
+    object.core.geometry = geometry;
+    object.pulse.geometry = geometry;
+    previous.dispose();
+    for (const line of [object.glow, object.core, object.pulse]) line.computeLineDistances();
+    object.positions = positions;
+    object.glow.visible = true;
+    object.core.visible = true;
+    object.pulse.visible = true;
+  } else {
+    const previous = object.downLine.geometry;
+    object.downLine.geometry = geometry;
+    previous.dispose();
+    object.downLine.computeLineDistances();
+    object.downPositions = positions;
+    object.downLine.visible = true;
+  }
+}
+
+function updateLineCoordinates(geometry, path) {
+  const starts = geometry.attributes.instanceStart;
+  const ends = geometry.attributes.instanceEnd;
+  if (!starts || !ends) return;
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const start = worldVectors[path[index]];
+    const end = worldVectors[path[index + 1]];
+    starts.setXYZ(index, start.x, start.y, start.z);
+    ends.setXYZ(index, end.x, end.y, end.z);
+  }
+  starts.needsUpdate = true;
+  ends.needsUpdate = true;
+}
+
+function updateSegmentCoordinates(geometry, hops) {
+  const starts = geometry.attributes.instanceStart;
+  const ends = geometry.attributes.instanceEnd;
+  if (!starts || !ends) return;
+  for (let index = 0; index < hops.length; index += 1) {
+    const [from, to] = hops[index];
+    const start = worldVectors[from];
+    const end = worldVectors[to];
+    starts.setXYZ(index, start.x, start.y, start.z);
+    ends.setXYZ(index, end.x, end.y, end.z);
+  }
+  starts.needsUpdate = true;
+  ends.needsUpdate = true;
+}
+
+function updateRouteVisibility(context = selectedPairContext()) {
+  for (const name of routeNames) {
+    const object = routeObjects[name];
+    const visible = state.visibleRoutes[name] && state.activeView === 'Path Explorer';
+    object.glow.visible = visible && object.routeKey !== '';
+    object.core.visible = visible && object.routeKey !== '';
+    object.pulse.visible = visible && object.routeKey !== '';
+    object.downLine.visible = visible && object.downPositions.length > 0;
+  }
+  const showEndpoints = context && state.activeView === 'Path Explorer';
+  sourceMarker.visible = Boolean(showEndpoints);
+  targetMarker.visible = Boolean(showEndpoints);
+  if (context) {
+    sourceMarker.position.copy(worldVectors[context.displaySourceIndex]);
+    targetMarker.position.copy(worldVectors[context.displayTargetIndex]);
+  }
+}
+
+function updateRouteGeometry() {
+  const context = selectedPairContext();
+  if (!context) {
+    state.pathGeometryPairIndex = -1;
+    state.pathGeometryFrameIndex = -1;
+    state.pathGeometryLinkFrame = -1;
+    routeNames.forEach((name) => {
+      const object = routeObjects[name];
+      object.routeKey = '';
+      object.pathIndexes = null;
+      object.downPositions = [];
+      object.downHops = [];
+      object.glow.visible = false;
+      object.core.visible = false;
+      object.pulse.visible = false;
+      object.downLine.visible = false;
+    });
+    return;
+  }
+  const linkFrameIndex = nearestLinkFrame(state.time);
+  if (state.pathGeometryPairIndex === context.pairIndex
+    && state.pathGeometryFrameIndex === context.frameIndex
+    && state.pathGeometryReverse === context.reverse
+    && state.pathGeometryLinkFrame === linkFrameIndex) {
+    for (const name of routeNames) {
+      const object = routeObjects[name];
+      if (object.pathIndexes?.length >= 2) {
+        updateLineCoordinates(object.glow.geometry, object.pathIndexes);
+        if (object.downHops.length) {
+          updateSegmentCoordinates(object.downLine.geometry, object.downHops);
+        }
+      }
+    }
+    updateRouteVisibility(context);
+    return;
+  }
+  state.pathGeometryPairIndex = context.pairIndex;
+  state.pathGeometryFrameIndex = context.frameIndex;
+  state.pathGeometryReverse = context.reverse;
+  state.pathGeometryLinkFrame = linkFrameIndex;
+  for (const [routerIndex, name] of routeNames.entries()) {
+    const object = routeObjects[name];
+    const path = routePath(context, routerIndex);
+    const failure = context.routeSample.last_failure[routerIndex];
+    const category = context.routeSample.classes[routerIndex];
+    if (!path || category === 'loop' || failure === 'loop') {
+      if (object.routeKey) {
+        object.routeKey = '';
+        object.glow.visible = false;
+        object.core.visible = false;
+        object.pulse.visible = false;
+        object.downLine.visible = false;
+        object.downPositions = [];
+        object.downHops = [];
+        object.pathIndexes = null;
+      }
+      continue;
+    }
+    const key = `${context.key}:${name}:${path.join(',')}:${linkFrameIndex}`;
+    const downPositions = [];
+    const downHops = [];
+    for (let index = 0; index < path.length - 1; index += 1) {
+      if (linkDelayAtFrame(path[index], path[index + 1], linkFrameIndex) === null) {
+        downHops.push([path[index], path[index + 1]]);
+        downPositions.push(...worldVectors[path[index]].toArray(), ...worldVectors[path[index + 1]].toArray());
+      }
+    }
+    if (object.routeKey !== key) {
+      object.routeKey = key;
+      object.pathIndexes = path;
+      if (path.length >= 2) {
+        const pathPositions = path.flatMap((nodeIndex) => worldVectors[nodeIndex].toArray());
+        installRouteGeometry(object, pathPositions);
+      } else {
+        object.routeKey = '';
+        object.pathIndexes = null;
+        object.glow.visible = false;
+        object.core.visible = false;
+        object.pulse.visible = false;
+      }
+      object.downPositions = downPositions;
+      object.downHops = downHops;
+      if (downPositions.length) installRouteGeometry(object, downPositions, 'down');
+      else object.downLine.visible = false;
+    }
+    if (path.length >= 2) {
+      updateLineCoordinates(object.glow.geometry, path);
+      if (object.downHops.length) {
+        updateSegmentCoordinates(object.downLine.geometry, object.downHops);
+      }
+    }
+  }
+  updateRouteVisibility(context);
+}
+
+function setRouteVisible(name, visible) {
+  const object = routeObjects[name];
+  if (!object) return;
+  if (!visible) {
+    object.glow.visible = false;
+    object.core.visible = false;
+    object.pulse.visible = false;
+    object.downLine.visible = false;
+  }
 }
 
 function updateDynamicDisplays() {
@@ -445,7 +923,7 @@ function renderInspector(index) {
     <div class="position-readout"><span class="eyebrow">POSITION · ECEF</span><strong>${positionKm.x.toFixed(1)} <i>/</i> ${positionKm.y.toFixed(1)} <i>/</i> ${positionKm.z.toFixed(1)} <small>KM</small></strong></div>
     <div class="neighbors-heading"><span class="eyebrow">ACTIVE NEIGHBOURS</span><b>${neighborLinks[index].filter(({ link }) => state.activeLinks.has(link)).length}</b></div>
     <div class="neighbor-list">${neighbors || '<div class="empty-neighbors">No active neighbours at this time.</div>'}</div>
-    <div class="route-note">${ROUTER_UNUSED_PATH_NOTE}</div>`;
+    <div class="route-note">${NEXT_HOP_NOTE}</div>`;
 }
 
 function sampleLinkDelay(linkIndex, time) {
@@ -544,6 +1022,9 @@ function render(timeNow) {
   }
   controls.update();
   flyCamera();
+  for (const name of routeNames) {
+    routeObjects[name].pulseMaterial.dashOffset = -(timeNow * 0.00015);
+  }
   if (sceneDirty) {
     updateSceneGeometry();
     sceneDirty = false;
@@ -596,14 +1077,26 @@ function setupInterface() {
   document.querySelectorAll('.station-row').forEach((button) => {
     button.addEventListener('click', () => showInspector(Number(button.dataset.nodeIndex)));
   });
+  document.querySelector('#station-options').innerHTML = stationNodes
+    .map((station) => `<option value="${escapeHtml(station.name)}"></option>`).join('');
+  document.querySelector('#path-source').value = state.pathSource;
+  document.querySelector('#path-target').value = state.pathTarget;
   document.querySelectorAll('.nav-item').forEach((button) => {
     button.addEventListener('click', () => {
       state.activeView = button.dataset.view;
       document.querySelectorAll('.nav-item').forEach((item) => item.classList.toggle('active', item === button));
       const isConstellation = state.activeView === 'Constellation';
-      document.querySelector('#view-placeholder').hidden = isConstellation;
+      const isPathExplorer = state.activeView === 'Path Explorer';
+      document.querySelector('#view-placeholder').hidden = isConstellation || isPathExplorer;
       document.querySelector('#placeholder-title').textContent = state.activeView;
-      document.querySelector('#constellation-panels').classList.toggle('view-inactive', !isConstellation);
+      document.querySelector('#constellation-panels').classList.toggle(
+        'view-inactive', !isConstellation && !isPathExplorer,
+      );
+      document.querySelector('#constellation-panels').classList.toggle('path-mode', isPathExplorer);
+      document.querySelector('#path-panel').hidden = !isPathExplorer;
+      sceneDirty = true;
+      if (isPathExplorer) refreshPathExplorer();
+      updateRouteVisibility();
     });
   });
   document.querySelector('#sidebar-toggle').addEventListener('click', () => {
@@ -634,6 +1127,25 @@ function setupInterface() {
   });
   document.querySelector('#time-slider').addEventListener('input', (event) => {
     setSimulationTime(Number(event.target.value));
+  });
+  for (const input of [document.querySelector('#path-source'), document.querySelector('#path-target')]) {
+    input.addEventListener('input', () => {
+      sceneDirty = true;
+      refreshPathExplorer();
+    });
+  }
+  document.querySelectorAll('.path-tab').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.pathSort = button.dataset.sort;
+      document.querySelectorAll('.path-tab').forEach((tab) => tab.classList.toggle('active', tab === button));
+      const context = selectedPairContext();
+      if (context) renderPathCards(context);
+    });
+  });
+  document.querySelector('#path-reverse').addEventListener('change', (event) => {
+    state.reversePath = event.target.checked;
+    sceneDirty = true;
+    refreshPathExplorer();
   });
   document.querySelector('#zoom-in').addEventListener('click', () => {
     camera.position.addScaledVector(camera.position.clone().sub(controls.target).normalize(), -1.7);
@@ -682,6 +1194,9 @@ if (import.meta.env.DEV) {
       raycaster.setFromCamera(pointer, camera);
       const hit = raycaster.intersectObject(nodeMesh, false)[0];
       return hit ? nodes[hit.instanceId].id : null;
+    },
+    routeLineVisible(name) {
+      return Boolean(routeObjects[name]?.core.visible);
     },
   };
 }

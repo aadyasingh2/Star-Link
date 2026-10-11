@@ -99,6 +99,10 @@
               </div>
               <input id="time-slider" class="time-slider" type="range" min="0" max="600" step="0.1" value="0" aria-label="Simulation time" />
               <div class="range-labels"><span>00:00</span><span id="time-end">10:00</span></div>
+              <div class="event-strip-wrap" id="event-strip-wrap" hidden>
+                <div class="event-strip-heading"><span>PAIR ROUTE CHANGES</span><span id="event-strip-count">0 EVENTS</span></div>
+                <div class="event-strip" id="event-strip" aria-label="Route change events"></div>
+              </div>
               <div class="zoom-row">
                 <span>VIEW SCALE</span>
                 <div><button id="zoom-out" aria-label="Zoom out">−</button><button id="zoom-in" aria-label="Zoom in">+</button></div>
@@ -112,6 +116,27 @@
               </div>
               <div id="inspector-content"></div>
             </section>
+          </aside>
+          <aside class="path-panel glass-panel" id="path-panel" hidden>
+            <div class="panel-heading path-heading">
+              <div><span class="eyebrow">PATH FINDING</span><h2>Route comparison</h2></div>
+              <span class="panel-live"><i class="status-dot"></i> LIVE</span>
+            </div>
+            <div class="path-tabs" role="group" aria-label="Route card sorting">
+              <button class="path-tab active" data-sort="hops">Fewest hops</button>
+              <button class="path-tab" data-sort="latency">Lowest latency</button>
+            </div>
+            <p class="path-note" title="These tabs only sort the exported router results; they do not recompute paths.">
+              5 ground stations only; routes.json contains 10 station pairs. Tabs sort results only.
+            </p>
+            <datalist id="station-options"></datalist>
+            <div class="path-endpoints">
+              <label>Source<input id="path-source" list="station-options" autocomplete="off" value="Chennai" aria-label="Source ground station" /></label>
+              <label>Target<input id="path-target" list="station-options" autocomplete="off" value="London" aria-label="Target ground station" /></label>
+            </div>
+            <label class="reverse-toggle"><input id="path-reverse" type="checkbox" /> <span>Show reverse path</span></label>
+            <div class="path-cards" id="path-cards"></div>
+            <div class="path-comparison" id="path-comparison"></div>
           </aside>
           <div class="scene-legend">
             <span><i class="legend-dot satellite-dot"></i>SATELLITES</span>
