@@ -865,7 +865,7 @@ t,pair,router,class,delay_ms
 72.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.26053463400454
 73.0,gs_Chennai->gs_London,Oracle,correct,34.695348357275414
 73.0,gs_Chennai->gs_London,LinkState,correct,34.695348357275414
-73.0,gs_Chennai->gs_London,DistanceVector,stale_working,38.27442652334137
+73.0,gs_Chennai->gs_London,DistanceVector,correct,34.695348357275414
 73.0,gs_Chennai->gs_London,SAPR,correct,34.695348357275414
 73.0,gs_Chennai->gs_Sydney,Oracle,correct,53.14109048749988
 73.0,gs_Chennai->gs_Sydney,LinkState,correct,53.14109048749988
@@ -1005,7 +1005,7 @@ t,pair,router,class,delay_ms
 84.0,gs_Chennai->gs_Sydney,SAPR,stale_working,54.23944716007682
 84.0,gs_New York->gs_Tokyo,Oracle,correct,50.82875700252394
 84.0,gs_New York->gs_Tokyo,LinkState,stale_working,60.566128862984854
-84.0,gs_New York->gs_Tokyo,DistanceVector,stale_working,60.566128862984854
+84.0,gs_New York->gs_Tokyo,DistanceVector,stale_working,51.10925405860657
 84.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.566128862984854
 85.0,gs_Chennai->gs_London,Oracle,correct,34.892881824182574
 85.0,gs_Chennai->gs_London,LinkState,correct,34.892881824182574
@@ -1173,7 +1173,7 @@ t,pair,router,class,delay_ms
 98.0,gs_Chennai->gs_Sydney,SAPR,stale_working,54.6584136886669
 98.0,gs_New York->gs_Tokyo,Oracle,correct,60.0496556966142
 98.0,gs_New York->gs_Tokyo,LinkState,stale_working,60.71476552804352
-98.0,gs_New York->gs_Tokyo,DistanceVector,loop,
+98.0,gs_New York->gs_Tokyo,DistanceVector,stale_working,60.71476552804352
 98.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.71476552804352
 99.0,gs_Chennai->gs_London,Oracle,correct,35.20625046282492
 99.0,gs_Chennai->gs_London,LinkState,correct,35.20625046282492
@@ -1273,7 +1273,7 @@ t,pair,router,class,delay_ms
 106.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.54211619348183
 107.0,gs_Chennai->gs_London,Oracle,correct,34.65216312757642
 107.0,gs_Chennai->gs_London,LinkState,correct,34.65216312757642
-107.0,gs_Chennai->gs_London,DistanceVector,correct,34.65216312757642
+107.0,gs_Chennai->gs_London,DistanceVector,stale_working,35.41999896235979
 107.0,gs_Chennai->gs_London,SAPR,stale_working,35.41999896235979
 107.0,gs_Chennai->gs_Sydney,Oracle,correct,47.30498272021432
 107.0,gs_Chennai->gs_Sydney,LinkState,correct,47.30498272021432
@@ -2425,7 +2425,7 @@ t,pair,router,class,delay_ms
 202.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.20464585565586
 203.0,gs_Chennai->gs_London,Oracle,correct,31.92491015486207
 203.0,gs_Chennai->gs_London,LinkState,stale_working,38.40269999999804
-203.0,gs_Chennai->gs_London,DistanceVector,correct,31.92491015486207
+203.0,gs_Chennai->gs_London,DistanceVector,stale_working,38.40269999999804
 203.0,gs_Chennai->gs_London,SAPR,correct,31.92491015486207
 203.0,gs_Chennai->gs_Sydney,Oracle,correct,46.712842639708555
 203.0,gs_Chennai->gs_Sydney,LinkState,correct,46.712842639708555
@@ -2649,7 +2649,7 @@ t,pair,router,class,delay_ms
 221.0,gs_Chennai->gs_Sydney,SAPR,stale_working,53.90328281713928
 221.0,gs_New York->gs_Tokyo,Oracle,correct,56.69084889159075
 221.0,gs_New York->gs_Tokyo,LinkState,correct,56.69084889159075
-221.0,gs_New York->gs_Tokyo,DistanceVector,stale_working,59.83090817222289
+221.0,gs_New York->gs_Tokyo,DistanceVector,correct,56.69084889159075
 221.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.596203813928184
 222.0,gs_Chennai->gs_London,Oracle,correct,31.605690658288175
 222.0,gs_Chennai->gs_London,LinkState,correct,31.605690658288175
@@ -4613,7 +4613,7 @@ t,pair,router,class,delay_ms
 385.0,gs_Chennai->gs_London,SAPR,stale_working,35.711899246068974
 385.0,gs_Chennai->gs_Sydney,Oracle,correct,47.238334416104735
 385.0,gs_Chennai->gs_Sydney,LinkState,stale_working,48.57571591385342
-385.0,gs_Chennai->gs_Sydney,DistanceVector,stale_working,48.57571591385342
+385.0,gs_Chennai->gs_Sydney,DistanceVector,stale_working,49.37230721296991
 385.0,gs_Chennai->gs_Sydney,SAPR,stale_working,48.57571591385342
 385.0,gs_New York->gs_Tokyo,Oracle,correct,60.20838387904557
 385.0,gs_New York->gs_Tokyo,LinkState,stale_working,60.66876464868331
@@ -5713,7 +5713,7 @@ t,pair,router,class,delay_ms
 476.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.575504332889956
 477.0,gs_Chennai->gs_London,Oracle,correct,31.91711492524402
 477.0,gs_Chennai->gs_London,LinkState,stale_working,38.505812132799065
-477.0,gs_Chennai->gs_London,DistanceVector,correct,31.91711492524402
+477.0,gs_Chennai->gs_London,DistanceVector,stale_working,38.505812132799065
 477.0,gs_Chennai->gs_London,SAPR,correct,31.91711492524402
 477.0,gs_Chennai->gs_Sydney,Oracle,correct,46.76473468780054
 477.0,gs_Chennai->gs_Sydney,LinkState,stale_working,49.00841119510778
@@ -5721,7 +5721,7 @@ t,pair,router,class,delay_ms
 477.0,gs_Chennai->gs_Sydney,SAPR,stale_working,54.41144237870192
 477.0,gs_New York->gs_Tokyo,Oracle,correct,56.76258906863826
 477.0,gs_New York->gs_Tokyo,LinkState,stale_working,57.52996044302443
-477.0,gs_New York->gs_Tokyo,DistanceVector,stale_working,57.52996044302443
+477.0,gs_New York->gs_Tokyo,DistanceVector,stale_working,60.5933708009604
 477.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.5933708009604
 478.0,gs_Chennai->gs_London,Oracle,correct,31.898558538780375
 478.0,gs_Chennai->gs_London,LinkState,correct,31.898558538780375
@@ -5733,7 +5733,7 @@ t,pair,router,class,delay_ms
 478.0,gs_Chennai->gs_Sydney,SAPR,stale_working,54.3876516139483
 478.0,gs_New York->gs_Tokyo,Oracle,correct,56.7573054225607
 478.0,gs_New York->gs_Tokyo,LinkState,stale_working,57.52421619939806
-478.0,gs_New York->gs_Tokyo,DistanceVector,correct,56.7573054225607
+478.0,gs_New York->gs_Tokyo,DistanceVector,stale_working,60.611618293649606
 478.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.611618293649606
 479.0,gs_Chennai->gs_London,Oracle,correct,31.88032693354915
 479.0,gs_Chennai->gs_London,LinkState,correct,31.88032693354915
@@ -5745,7 +5745,7 @@ t,pair,router,class,delay_ms
 479.0,gs_Chennai->gs_Sydney,SAPR,stale_working,54.36411159059449
 479.0,gs_New York->gs_Tokyo,Oracle,correct,56.752284008829804
 479.0,gs_New York->gs_Tokyo,LinkState,stale_working,57.51873141994941
-479.0,gs_New York->gs_Tokyo,DistanceVector,correct,56.752284008829804
+479.0,gs_New York->gs_Tokyo,DistanceVector,stale_working,57.51873141994941
 479.0,gs_New York->gs_Tokyo,SAPR,stale_working,60.630243497704306
 480.0,gs_Chennai->gs_London,Oracle,correct,31.862420297441393
 480.0,gs_Chennai->gs_London,LinkState,correct,31.862420297441393

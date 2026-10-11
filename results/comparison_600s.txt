@@ -33,6 +33,7 @@ sapr.alpha=0.5
 sapr.guard_time_s=5.0
 sapr.hysteresis_margin_ms=10.0
 sapr.latency_bound_multiplier=1.2
+evaluation.near_optimal_tolerance_ms=1.0
 routing.boot_window_s=60.0
 routing.detection_delay_s=0.1
 routing.lsa_processing_delay_ms=1.0
@@ -48,27 +49,73 @@ routing.bytes_per_lsa_header=24
 routing.bytes_per_lsa_link=8
 routing.bytes_per_dv_header=24
 routing.bytes_per_dv_entry=8
-boot_seconds=35.725
-Router         | %correct | %stale_working | %loop | %blackhole | mean actual delay ms | p99 actual delay ms | mean stretch vs oracle | route changes/min | measured control messages | control bytes | dropped messages | SPF runs | cost events generated | boot messages
----------------+----------+----------------+-------+------------+----------------------+---------------------+------------------------+-------------------+---------------------------+---------------+------------------+----------+-----------------------+--------------
-Oracle         | 100.00   | 0.00           | 0.00  | 0.00       | 47.680               | 60.304              | 1.000                  | 3.800             | 0                         | 0             | 0                | -        | 0                     | 0            
-LinkState      | 54.17    | 44.50          | 0.00  | 1.33       | 48.113               | 60.638              | 1.009                  | 2.400             | 731266                    | 37246856      | 0                | 3595     | 0                     | 620426       
-DistanceVector | 53.67    | 45.44          | 0.06  | 0.83       | 48.151               | 60.601              | 1.010                  | 4.000             | 364057                    | 1063068816    | 0                | -        | 0                     | 57567        
-SAPR           | 32.56    | 67.44          | 0.00  | 0.00       | 48.605               | 61.753              | 1.018                  | 1.900             | 0                         | 0             | 0                | -        | 0                     | 0            
-Per-pair breakdown (router: class counts; oracle_unreachable; mean actual delay ms)
+boot_seconds=25.648
+Router         | %correct | %stale_working | %loop | %blackhole | %near_optimal | mean actual delay ms | p99 actual delay ms | mean stretch vs oracle | route changes/min | measured control messages | control bytes | dropped messages | SPF runs | cost events generated | boot messages
+---------------+----------+----------------+-------+------------+---------------+----------------------+---------------------+------------------------+-------------------+---------------------------+---------------+------------------+----------+-----------------------+--------------
+Oracle         | 100.00   | 0.00           | 0.00  | 0.00       | 100.00        | 47.680               | 60.304              | 1.000                  | 3.800             | 0                         | 0             | 0                | -        | 0                     | 0
+LinkState      | 54.17    | 44.50          | 0.00  | 1.33       | 80.89         | 48.113               | 60.638              | 1.009                  | 2.400             | 731266                    | 37246856      | 0                | 3595     | 0                     | 620426
+DistanceVector | 53.50    | 45.67          | 0.00  | 0.83       | 79.89         | 48.162               | 60.613              | 1.010                  | 3.800             | 367503                    | 1073615616    | 0                | -        | 0                     | 57650
+SAPR           | 32.56    | 67.44          | 0.00  | 0.00       | 72.39         | 48.605               | 61.753              | 1.018                  | 1.900             | 0                         | 0             | 0                | -        | 0                     | 0
+Per-pair breakdown (router: class counts; oracle_unreachable; %near_optimal; mean actual delay ms)
 gs_Chennai -> gs_London
-  Oracle: correct=600, stale_working=0, loop=0, blackhole=0; oracle_unreachable=0; mean_actual_delay_ms=33.526
-  LinkState: correct=585, stale_working=7, loop=0, blackhole=8; oracle_unreachable=0; mean_actual_delay_ms=33.535
-  DistanceVector: correct=580, stale_working=16, loop=0, blackhole=4; oracle_unreachable=0; mean_actual_delay_ms=33.600
-  SAPR: correct=433, stale_working=167, loop=0, blackhole=0; oracle_unreachable=0; mean_actual_delay_ms=33.770
+  Oracle: correct=600, stale_working=0, loop=0, blackhole=0; oracle_unreachable=0; near_optimal=100.00% (600/600); mean_actual_delay_ms=33.526
+  LinkState: correct=585, stale_working=7, loop=0, blackhole=8; oracle_unreachable=0; near_optimal=98.00% (588/600); mean_actual_delay_ms=33.535
+  DistanceVector: correct=578, stale_working=18, loop=0, blackhole=4; oracle_unreachable=0; near_optimal=97.33% (584/600); mean_actual_delay_ms=33.617
+  SAPR: correct=433, stale_working=167, loop=0, blackhole=0; oracle_unreachable=0; near_optimal=98.33% (590/600); mean_actual_delay_ms=33.770
 gs_Chennai -> gs_Sydney
-  Oracle: correct=600, stale_working=0, loop=0, blackhole=0; oracle_unreachable=0; mean_actual_delay_ms=50.826
-  LinkState: correct=205, stale_working=388, loop=0, blackhole=7; oracle_unreachable=0; mean_actual_delay_ms=51.709
-  DistanceVector: correct=203, stale_working=391, loop=0, blackhole=6; oracle_unreachable=0; mean_actual_delay_ms=51.727
-  SAPR: correct=3, stale_working=597, loop=0, blackhole=0; oracle_unreachable=0; mean_actual_delay_ms=52.091
+  Oracle: correct=600, stale_working=0, loop=0, blackhole=0; oracle_unreachable=0; near_optimal=100.00% (600/600); mean_actual_delay_ms=50.826
+  LinkState: correct=205, stale_working=388, loop=0, blackhole=7; oracle_unreachable=0; near_optimal=51.17% (307/600); mean_actual_delay_ms=51.709
+  DistanceVector: correct=203, stale_working=391, loop=0, blackhole=6; oracle_unreachable=0; near_optimal=50.83% (305/600); mean_actual_delay_ms=51.728
+  SAPR: correct=3, stale_working=597, loop=0, blackhole=0; oracle_unreachable=0; near_optimal=42.17% (253/600); mean_actual_delay_ms=52.091
 gs_New York -> gs_Tokyo
-  Oracle: correct=600, stale_working=0, loop=0, blackhole=0; oracle_unreachable=0; mean_actual_delay_ms=58.689
-  LinkState: correct=185, stale_working=406, loop=0, blackhole=9; oracle_unreachable=0; mean_actual_delay_ms=59.109
-  DistanceVector: correct=183, stale_working=411, loop=1, blackhole=5; oracle_unreachable=0; mean_actual_delay_ms=59.176
-  SAPR: correct=150, stale_working=450, loop=0, blackhole=0; oracle_unreachable=0; mean_actual_delay_ms=59.953
-total_runtime_seconds=338.112
+  Oracle: correct=600, stale_working=0, loop=0, blackhole=0; oracle_unreachable=0; near_optimal=100.00% (600/600); mean_actual_delay_ms=58.689
+  LinkState: correct=185, stale_working=406, loop=0, blackhole=9; oracle_unreachable=0; near_optimal=93.50% (561/600); mean_actual_delay_ms=59.109
+  DistanceVector: correct=182, stale_working=413, loop=0, blackhole=5; oracle_unreachable=0; near_optimal=91.50% (549/600); mean_actual_delay_ms=59.171
+  SAPR: correct=150, stale_working=450, loop=0, blackhole=0; oracle_unreachable=0; near_optimal=76.67% (460/600); mean_actual_delay_ms=59.953
+Diagnostic: gs_New York -> gs_Tokyo; first five LinkState stale_working samples
+  t=33.0s; oracle_path=gs_New York -> sat_227 -> sat_226 -> sat_225 -> sat_224 -> sat_223 -> sat_222 -> sat_201 -> sat_200 -> sat_179 -> sat_178 -> gs_Tokyo; oracle_delay_ms=59.621; LinkState_path=gs_New York -> sat_227 -> sat_206 -> sat_205 -> sat_184 -> sat_183 -> sat_182 -> sat_181 -> sat_180 -> sat_179 -> sat_178 -> gs_Tokyo; LinkState_delay_ms=59.626
+    sat_227 -> sat_206: true_delay_ms=4.137; stored_cost_ms=4.036
+    sat_206 -> sat_205: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_205 -> sat_184: true_delay_ms=4.104; stored_cost_ms=4.002
+    sat_184 -> sat_183: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_183 -> sat_182: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_182 -> sat_181: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_181 -> sat_180: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_180 -> sat_179: true_delay_ms=6.571; stored_cost_ms=6.571
+  t=34.0s; oracle_path=gs_New York -> sat_227 -> sat_226 -> sat_225 -> sat_224 -> sat_223 -> sat_222 -> sat_201 -> sat_200 -> sat_179 -> sat_178 -> gs_Tokyo; oracle_delay_ms=59.617; LinkState_path=gs_New York -> sat_227 -> sat_206 -> sat_205 -> sat_184 -> sat_183 -> sat_182 -> sat_181 -> sat_180 -> sat_179 -> sat_178 -> gs_Tokyo; LinkState_delay_ms=59.634
+    sat_227 -> sat_206: true_delay_ms=4.140; stored_cost_ms=4.036
+    sat_206 -> sat_205: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_205 -> sat_184: true_delay_ms=4.107; stored_cost_ms=4.002
+    sat_184 -> sat_183: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_183 -> sat_182: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_182 -> sat_181: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_181 -> sat_180: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_180 -> sat_179: true_delay_ms=6.571; stored_cost_ms=6.571
+  t=35.0s; oracle_path=gs_New York -> sat_227 -> sat_226 -> sat_225 -> sat_224 -> sat_223 -> sat_222 -> sat_201 -> sat_200 -> sat_179 -> sat_178 -> gs_Tokyo; oracle_delay_ms=59.614; LinkState_path=gs_New York -> sat_227 -> sat_206 -> sat_205 -> sat_184 -> sat_183 -> sat_182 -> sat_181 -> sat_180 -> sat_179 -> sat_178 -> gs_Tokyo; LinkState_delay_ms=59.643
+    sat_227 -> sat_206: true_delay_ms=4.143; stored_cost_ms=4.036
+    sat_206 -> sat_205: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_205 -> sat_184: true_delay_ms=4.110; stored_cost_ms=4.002
+    sat_184 -> sat_183: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_183 -> sat_182: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_182 -> sat_181: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_181 -> sat_180: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_180 -> sat_179: true_delay_ms=6.571; stored_cost_ms=6.571
+  t=36.0s; oracle_path=gs_New York -> sat_227 -> sat_226 -> sat_225 -> sat_224 -> sat_223 -> sat_222 -> sat_201 -> sat_200 -> sat_179 -> sat_178 -> gs_Tokyo; oracle_delay_ms=59.611; LinkState_path=gs_New York -> sat_227 -> sat_206 -> sat_205 -> sat_184 -> sat_183 -> sat_182 -> sat_181 -> sat_180 -> sat_179 -> sat_178 -> gs_Tokyo; LinkState_delay_ms=59.653
+    sat_227 -> sat_206: true_delay_ms=4.146; stored_cost_ms=4.036
+    sat_206 -> sat_205: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_205 -> sat_184: true_delay_ms=4.113; stored_cost_ms=4.002
+    sat_184 -> sat_183: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_183 -> sat_182: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_182 -> sat_181: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_181 -> sat_180: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_180 -> sat_179: true_delay_ms=6.571; stored_cost_ms=6.571
+  t=37.0s; oracle_path=gs_New York -> sat_227 -> sat_226 -> sat_225 -> sat_224 -> sat_223 -> sat_222 -> sat_201 -> sat_200 -> sat_179 -> sat_178 -> gs_Tokyo; oracle_delay_ms=59.608; LinkState_path=gs_New York -> sat_227 -> sat_206 -> sat_205 -> sat_184 -> sat_183 -> sat_182 -> sat_181 -> sat_180 -> sat_179 -> sat_178 -> gs_Tokyo; LinkState_delay_ms=59.663
+    sat_227 -> sat_206: true_delay_ms=4.149; stored_cost_ms=4.036
+    sat_206 -> sat_205: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_205 -> sat_184: true_delay_ms=4.116; stored_cost_ms=4.002
+    sat_184 -> sat_183: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_183 -> sat_182: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_182 -> sat_181: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_181 -> sat_180: true_delay_ms=6.571; stored_cost_ms=6.571
+    sat_180 -> sat_179: true_delay_ms=6.571; stored_cost_ms=6.571
+total_runtime_seconds=210.118

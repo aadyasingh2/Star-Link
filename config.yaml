@@ -42,6 +42,9 @@ sapr:
   hysteresis_margin_ms: 10.0
   latency_bound_multiplier: 1.2
 
+evaluation:
+  near_optimal_tolerance_ms: 1.0
+
 routing:
   boot_window_s: 60.0                 # seconds
   detection_delay_s: 0.1

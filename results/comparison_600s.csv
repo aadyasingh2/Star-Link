@@ -1,5 +1,5 @@
-Router,%correct,%stale_working,%loop,%blackhole,mean actual delay ms,p99 actual delay ms,mean stretch vs oracle,route changes/min,measured control messages,control bytes,dropped messages,SPF runs,cost events generated,boot messages
-Oracle,100.00,0.00,0.00,0.00,47.680,60.304,1.000,3.800,0,0,0,-,0,0
-LinkState,54.17,44.50,0.00,1.33,48.113,60.638,1.009,2.400,731266,37246856,0,3595,0,620426
-DistanceVector,53.67,45.44,0.06,0.83,48.151,60.601,1.010,4.000,364057,1063068816,0,-,0,57567
-SAPR,32.56,67.44,0.00,0.00,48.605,61.753,1.018,1.900,0,0,0,-,0,0
+Router,%correct,%stale_working,%loop,%blackhole,%near_optimal,mean actual delay ms,p99 actual delay ms,mean stretch vs oracle,route changes/min,measured control messages,control bytes,dropped messages,SPF runs,cost events generated,boot messages
+Oracle,100.00,0.00,0.00,0.00,100.00,47.680,60.304,1.000,3.800,0,0,0,-,0,0
+LinkState,54.17,44.50,0.00,1.33,80.89,48.113,60.638,1.009,2.400,731266,37246856,0,3595,0,620426
+DistanceVector,53.50,45.67,0.00,0.83,79.89,48.162,60.613,1.010,3.800,367503,1073615616,0,-,0,57650
+SAPR,32.56,67.44,0.00,0.00,72.39,48.605,61.753,1.018,1.900,0,0,0,-,0,0
