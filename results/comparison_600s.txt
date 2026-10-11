@@ -49,7 +49,7 @@ routing.bytes_per_lsa_header=24
 routing.bytes_per_lsa_link=8
 routing.bytes_per_dv_header=24
 routing.bytes_per_dv_entry=8
-boot_seconds=25.648
+boot_seconds=12.638
 Router         | %correct | %stale_working | %loop | %blackhole | %near_optimal | mean actual delay ms | p99 actual delay ms | mean stretch vs oracle | route changes/min | measured control messages | control bytes | dropped messages | SPF runs | cost events generated | boot messages
 ---------------+----------+----------------+-------+------------+---------------+----------------------+---------------------+------------------------+-------------------+---------------------------+---------------+------------------+----------+-----------------------+--------------
 Oracle         | 100.00   | 0.00           | 0.00  | 0.00       | 100.00        | 47.680               | 60.304              | 1.000                  | 3.800             | 0                         | 0             | 0                | -        | 0                     | 0
@@ -118,4 +118,4 @@ Diagnostic: gs_New York -> gs_Tokyo; first five LinkState stale_working samples
     sat_182 -> sat_181: true_delay_ms=6.571; stored_cost_ms=6.571
     sat_181 -> sat_180: true_delay_ms=6.571; stored_cost_ms=6.571
     sat_180 -> sat_179: true_delay_ms=6.571; stored_cost_ms=6.571
-total_runtime_seconds=210.118
+total_runtime_seconds=100.994

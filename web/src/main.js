@@ -117,7 +117,6 @@ rimLight.position.set(8, -4, -12);
 scene.add(rimLight);
 
 const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS_KM * EARTH_SCALE, 96, 64);
-earthGeometry.rotateX(Math.PI / 2);
 const textureLoader = new THREE.TextureLoader();
 const earthTexture = textureLoader.load('/textures/blue-marble.png');
 earthTexture.colorSpace = THREE.SRGBColorSpace;
@@ -446,10 +445,20 @@ function updateSceneGeometry() {
   linkGeometry.attributes.alpha.needsUpdate = true;
 
   for (const item of stationLabels) {
-    item.object.position.copy(interpolatePosition(item.nodeIndex, time, labelVector).multiplyScalar(1.04));
+    item.object.position.copy(interpolatePosition(item.nodeIndex, time, labelVector).multiplyScalar(1.012));
   }
   updateTrail();
   if (state.activeView === 'Path Explorer') updateRouteGeometry();
+}
+
+function updateStationLabelVisibility() {
+  for (const item of stationLabels) {
+    const point = worldVectors[item.nodeIndex];
+    const toCameraX = camera.position.x - point.x;
+    const toCameraY = camera.position.y - point.y;
+    const toCameraZ = camera.position.z - point.z;
+    item.object.visible = point.x * toCameraX + point.y * toCameraY + point.z * toCameraZ > 0;
+  }
 }
 
 function updateTrail() {
@@ -1025,6 +1034,7 @@ function render(timeNow) {
   }
   controls.update();
   flyCamera();
+  updateStationLabelVisibility();
   for (const name of routeNames) {
     routeObjects[name].pulseMaterial.dashOffset = -(timeNow * 0.00015);
   }

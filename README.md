@@ -58,6 +58,21 @@ python scripts\export_viz_data.py                       # writes web\public\data
 
 `web/public/data/SCHEMA.md` describes every file and field. All numbers shown in the web app come from these files.
 
+## Reproduce the demo from the repository root
+
+After completing the setup above, run this sequence in PowerShell to regenerate the baseline results and visualization data, then build the web app:
+
+```powershell
+python scripts\baseline_report.py --duration 600 --out results\comparison_600s.txt
+python scripts\export_viz_data.py
+Push-Location web
+npm ci
+npm run build
+Pop-Location
+```
+
+The baseline report writes its summary and per-sample CSV files alongside `results\comparison_600s.txt`. The exporter uses its defaults to write the browser's JSON inputs to `web\public\data\`. `npm run build` writes the static site to `web\dist\`. To view it during development, run `npm run dev` from `web\` instead of the build command.
+
 ## Run the web app
 
 ```powershell
@@ -74,11 +89,39 @@ Views:
 | Constellation | 3D Earth, 528 satellites, links, ground stations, time controls, click inspector |
 | Path Explorer | routes of Oracle, LinkState, DistanceVector and SAPR for ground-station pairs, per-hop delay, route-change ticks |
 | Analytics | headline table, route classes, delay, overhead, stability timeline, per-pair view, method and limits |
-| Network Graph, Events | placeholders, not built |
+| Network Graph, Events | not included in the current navigation |
 
 Path Explorer covers ground-station pairs only, because those are the pairs the simulator exports. Packet queues, packet loss beyond route-level probes, and TCP throughput are shown as "not measured".
 
 The Earth texture is a NASA Blue Marble image; its source and license are in `web/public/textures/SOURCE.md`.
+
+## Demo walkthrough
+
+Start the app with `cd web` followed by `npm run dev`, then open the local URL printed by Vite.
+
+1. **Constellation:** show the satellite, plane, station, and active-link counts; choose a ground station or click a visible satellite to inspect it; scrub or play the 600-second simulation.
+2. **Path Explorer:** choose a source and destination from the five exported ground stations. Compare the four router cards, inspect per-hop delays and route-change ticks, then toggle a router to show or hide its path.
+3. **Analytics:** choose a station pair and compare the exported headline metrics, quality/delay/overhead charts, and per-second route-class timeline.
+
+The navigation exposes only these three implemented views. Network Graph and Events are not part of the current demo. Existing reference captures are in `web/screenshots/` (`v2_main.png`, `v3_paths.png`, and `v4_analytics.png`).
+
+## Architecture and backend scope
+
+```text
+config.yaml + src/                 Python simulation model and routing algorithms
+        |
+        +-- scripts/baseline_report.py  -> results/comparison_600s.*
+        |
+        +-- scripts/export_viz_data.py  -> web/public/data/*.json
+                                            |
+                                            v
+                                  Vite-served browser app
+                                  (Three.js + ECharts)
+```
+
+This is an offline-compute/static-data architecture: the Python simulator runs when explicitly invoked, and the exporter writes JSON files that the browser loads. There is no live Python API, server-side application, or database in the current project. Vite's development server serves the frontend and exported files; the production build is static output in `web/dist/`.
+
+A live backend would only be needed if the site must launch simulations on demand, accept user uploads or configuration, or coordinate work across users. A database would only be needed if runs, user accounts, or editable results must persist and be queried. Those requirements are outside this project's current scope, so they are not represented as implemented features.
 
 ## Configuration (`config.yaml`)
 
