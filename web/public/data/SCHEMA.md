@@ -64,7 +64,7 @@
 - `events.json.events[].new_class`: new classification.
 - `summary.json.headers`: summary table column labels.
 - `summary.json.rows`: summary table rows from baseline aggregation helpers.
-- `summary.json.per_pair`: per-pair class totals, unreachable counts, and mean delay.
+- `summary.json.per_pair`: per-pair class totals, near-optimal percentage, unreachable counts, and mean delay.
 - `summary.json.per_pair.<pair>.Oracle`: oracle metrics for the pair.
 - `summary.json.per_pair.<pair>.LinkState`: LinkState metrics for the pair.
 - `summary.json.per_pair.<pair>.DistanceVector`: DistanceVector metrics for the pair.

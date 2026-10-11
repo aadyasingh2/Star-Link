@@ -101,7 +101,12 @@ def make_node_table(config, constellation, snapshot):
 
 def graph_edges(graph, node_index):
     extracted = {}
-    for u, v, data in graph.edges(data=True):
+    for u, v, data in sorted(
+        graph.edges(data=True),
+        key=lambda edge: tuple(sorted(
+            (node_index[edge[0]], node_index[edge[1]])
+        )),
+    ):
         key = tuple(sorted((node_index[u], node_index[v])))
         extracted[key] = {
             'a': key[0],
@@ -130,6 +135,7 @@ def sample_positions(topology, constellation, nodes, times):
 def build_summary(router_metrics, pair_metrics, duration_s, routers, engine):
     headers = [
         'Router', '%correct', '%stale_working', '%loop', '%blackhole',
+        '%near_optimal',
         'mean actual delay ms', 'p99 actual delay ms', 'mean stretch vs oracle',
         'route changes/min', 'measured control messages', 'control bytes',
         'dropped messages', 'SPF runs', 'cost events generated', 'boot messages',
@@ -151,9 +157,14 @@ def build_summary(router_metrics, pair_metrics, duration_s, routers, engine):
         pair_name = f'{pair[0]} -> {pair[1]}'
         breakdown[pair_name] = {}
         for name, metrics in by_router.items():
+            reachable_samples = sum(metrics['classes'].values())
             breakdown[pair_name][name] = {
                 'classes': dict(metrics['classes']),
                 'oracle_unreachable': metrics['oracle_unreachable'],
+                'near_optimal_percent': (
+                    metrics['near_optimal'] * 100.0 / reachable_samples
+                    if reachable_samples else 0.0
+                ),
                 'mean_actual_delay_ms': format_metric(mean(metrics['delays'])),
             }
     return {'headers': headers, 'rows': rows, 'per_pair': breakdown}
@@ -209,6 +220,9 @@ def main():
         config = yaml.safe_load(config_file)
     config['constellation']['isl_inter_plane_max_lat_deg'] = 45
     seed = int(config['simulation']['random_seed'])
+    near_optimal_tolerance_ms = float(
+        config['evaluation']['near_optimal_tolerance_ms']
+    )
     random.seed(seed)
     np.random.seed(seed)
     out_dir = os.path.abspath(args.out)
@@ -281,10 +295,10 @@ def main():
     boot_seconds = time.perf_counter() - boot_started
 
     current_edges = initial_edges
-    for key, edge in current_edges.items():
+    for key, edge in sorted(current_edges.items()):
         edge_table.setdefault(key, edge)
     initial_lifetimes = {}
-    for key in current_edges:
+    for key in sorted(current_edges):
         u, v = nodes[key[0]]['id'], nodes[key[1]]['id']
         lifetime = topology.link_remaining_lifetime(
             u, v, 0, float(config['sapr']['look_ahead_window_s'])
@@ -294,14 +308,14 @@ def main():
             'capped': lifetime >= float(config['sapr']['look_ahead_window_s']),
         }
     delay_frame_maps.append({
-        key: edge['delay_ms'] for key, edge in current_edges.items()
+        key: edge['delay_ms'] for key, edge in sorted(current_edges.items())
     })
     lifetime_frame_maps.append(initial_lifetimes)
     for second in range(1, args.duration + 1):
         engine.step_to(float(second))
         snapshot = topology.get_snapshot(second)
         current_edges = graph_edges(snapshot, node_index)
-        for key, edge in current_edges.items():
+        for key, edge in sorted(current_edges.items()):
             edge_table.setdefault(key, {**edge, 'delay_ms': None})
         new_events = captured_events
         captured_events = []
@@ -322,7 +336,7 @@ def main():
         if second in positions_times:
             delay_row = {}
             lifetime_row = {}
-            for key, edge in current_edges.items():
+            for key, edge in sorted(current_edges.items()):
                 delay_row[key] = edge['delay_ms']
                 u, v = nodes[key[0]]['id'], nodes[key[1]]['id']
                 lifetime = topology.link_remaining_lifetime(
@@ -373,10 +387,12 @@ def main():
                 record_sample(
                     router_metrics[name], pair_key, path, category, delay,
                     truth_path is not None, truth_delay,
+                    near_optimal_tolerance_ms,
                 )
                 record_sample(
                     pair_metrics[pair_key][name], pair_key, path, category, delay,
                     truth_path is not None, truth_delay,
+                    near_optimal_tolerance_ms,
                 )
                 route_key = (name, pair_index[(node_index[src], node_index[dst])])
                 old_path = previous_paths.get(route_key)
@@ -412,7 +428,7 @@ def main():
             'delay_ms': delay_s * 1000.0 if delay_s is not None else None,
         })
 
-    ordered_keys = list(edge_table)
+    ordered_keys = sorted(edge_table)
     edge_ids = {key: index for index, key in enumerate(ordered_keys)}
     for record in link_events:
         record['link_id'] = edge_ids[(record['a'], record['b'])]
@@ -559,7 +575,7 @@ def main():
             '- `events.json.events[].new_class`: new classification.\n'
             '- `summary.json.headers`: summary table column labels.\n'
             '- `summary.json.rows`: summary table rows from baseline aggregation helpers.\n'
-            '- `summary.json.per_pair`: per-pair class totals, unreachable counts, and mean delay.\n'
+            '- `summary.json.per_pair`: per-pair class totals, near-optimal percentage, unreachable counts, and mean delay.\n'
             '- `summary.json.per_pair.<pair>.Oracle`: oracle metrics for the pair.\n'
             '- `summary.json.per_pair.<pair>.LinkState`: LinkState metrics for the pair.\n'
             '- `summary.json.per_pair.<pair>.DistanceVector`: DistanceVector metrics for the pair.\n'
