@@ -114,7 +114,7 @@ class SAPRRouter(Router):
                 and snapshot.nodes[node].get('type') == 'ground_station'
             ):
                 continue
-            for neighbor in snapshot.neighbors(node):
+            for neighbor in sorted(snapshot.neighbors(node), key=str):
                 if predictive:
                     edge_cost = self._edge_cost(
                         snapshot, node, neighbor, step, enforce_guard

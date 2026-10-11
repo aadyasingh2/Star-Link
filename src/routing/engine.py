@@ -111,7 +111,10 @@ class RoutingEngine:
         curr = self.topology_series.get_snapshot(t)
         # Extract propagation delays, supporting both seconds and milliseconds keys
         prev_edges = {}
-        for u, v, d in prev.edges(data=True):
+        for u, v, d in sorted(
+            prev.edges(data=True),
+            key=lambda edge: tuple(sorted((str(edge[0]), str(edge[1])))),
+        ):
             if "propagation_delay_s" in d:
                 delay = d["propagation_delay_s"]
             elif "propagation_delay_ms" in d:
@@ -120,7 +123,10 @@ class RoutingEngine:
                 raise KeyError("Missing propagation delay attribute")
             prev_edges[tuple(sorted((u, v)))] = (u, v, delay)
         curr_edges = {}
-        for u, v, d in curr.edges(data=True):
+        for u, v, d in sorted(
+            curr.edges(data=True),
+            key=lambda edge: tuple(sorted((str(edge[0]), str(edge[1])))),
+        ):
             if "propagation_delay_s" in d:
                 delay = d["propagation_delay_s"]
             elif "propagation_delay_ms" in d:
@@ -130,17 +136,17 @@ class RoutingEngine:
             curr_edges[tuple(sorted((u, v)))] = (u, v, delay)
         events = []
         # Up events
-        for key, (u, v, delay) in curr_edges.items():
+        for key, (u, v, delay) in sorted(curr_edges.items()):
             if key not in prev_edges:
                 events.append((u, v, "up", delay))
         # Down events
-        for key, (u, v, _) in prev_edges.items():
+        for key, (u, v, _) in sorted(prev_edges.items()):
             if key not in curr_edges:
                 events.append((u, v, "down", None))
         threshold_s = (
             self.config["routing"].get("cost_change_threshold_ms", 2.0) / 1000.0
         )
-        for key in prev_edges.keys() & curr_edges.keys():
+        for key in sorted(prev_edges.keys() & curr_edges.keys()):
             u, v, delay = curr_edges[key]
             advertised = self._advertised.get(key)
             if advertised is not None and abs(delay - advertised) > threshold_s:
@@ -191,7 +197,10 @@ class RoutingEngine:
             for node in nodes
         ], dtype=bool)
         self._advertised = {}
-        for u, v, data in snapshot.edges(data=True):
+        for u, v, data in sorted(
+            snapshot.edges(data=True),
+            key=lambda edge: tuple(sorted((str(edge[0]), str(edge[1])))),
+        ):
             if "propagation_delay_s" in data:
                 delay = data["propagation_delay_s"]
             elif "propagation_delay_ms" in data:
@@ -201,7 +210,10 @@ class RoutingEngine:
             self._advertised[tuple(sorted((u, v)))] = delay
         for r in self.routers:
             r.begin_batch()
-        for u, v, d in snapshot.edges(data=True):
+        for u, v, d in sorted(
+            snapshot.edges(data=True),
+            key=lambda edge: tuple(sorted((str(edge[0]), str(edge[1])))),
+        ):
             if "propagation_delay_s" in d:
                 delay = d["propagation_delay_s"]
             elif "propagation_delay_ms" in d:

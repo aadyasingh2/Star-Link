@@ -355,6 +355,7 @@ def test_dv_drop_in_flight(config):
     engine.initialize()
     down_step = int(engine.current_time) + 2
     ts.snapshots[float(down_step)] = g2
+    engine.schedule_at(down_step - 0.8, dvr._send_updates, 'A')
     engine.step_to(down_step + 3.0)
     assert dvr.dropped_message_count > 0
 
@@ -395,11 +396,13 @@ def test_dv_6_node_convergence(config):
 
 def test_dv_triggered_holdoff_reduces_boot_events(config):
     graph = nx.Graph()
-    for index in range(5):
-        graph.add_edge(
-            f'N{index}', f'N{index + 1}',
-            propagation_delay_ms=10.0, available=True,
-        )
+    nodes = [f'N{index}' for index in range(5)]
+    for left in range(len(nodes)):
+        for right in range(left + 1, len(nodes)):
+            graph.add_edge(
+                nodes[left], nodes[right],
+                propagation_delay_ms=10.0, available=True,
+            )
     results = []
     for holdoff in (1.0, 0.0):
         run_config = {
@@ -413,9 +416,9 @@ def test_dv_triggered_holdoff_reduces_boot_events(config):
         engine.add_router('dvr', dvr)
         engine.initialize()
         expected = nx.shortest_path(
-            graph, 'N0', 'N5', weight='propagation_delay_ms'
+            graph, 'N0', 'N4', weight='propagation_delay_ms'
         )
-        assert dvr.compute_route('N0', 'N5', 0.0) == expected
+        assert dvr.compute_route('N0', 'N4', 0.0) == expected
         results.append((dvr.boot_message_count, engine.events_processed))
 
     assert results[0][0] < results[1][0]

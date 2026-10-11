@@ -34,7 +34,7 @@ def oracle_path(snapshot, src, dst):
             return path, distance
         if node != src and snapshot.nodes[node].get("type") == "ground_station":
             continue
-        for neighbor in snapshot.neighbors(node):
+        for neighbor in sorted(snapshot.neighbors(node), key=str):
             candidate = distance + _edge_delay_ms(snapshot, node, neighbor)
             if candidate < distances.get(neighbor, float("inf")):
                 distances[neighbor] = candidate

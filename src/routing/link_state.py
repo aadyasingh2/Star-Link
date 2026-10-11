@@ -40,7 +40,7 @@ class LinkStateRouter(Router):
         dirty_nodes = self._batch_dirty_nodes
         self._batch_dirty_nodes = set()
         self._batching = False
-        for node in dirty_nodes:
+        for node in sorted(dirty_nodes):
             self._local_change(node, self.engine.current_time)
 
     def compute_route_hop(self, node, dst, t):
@@ -131,7 +131,7 @@ class LinkStateRouter(Router):
             self._run_spf(node)
 
     def warm_up(self):
-        for node in self.engine.nodes:
+        for node in sorted(self.engine.nodes, key=str):
             self._ensure_table(node)
         self.boot_spf_runs = self.spf_runs
         self.spf_runs = 0
@@ -152,7 +152,9 @@ class LinkStateRouter(Router):
                 and self.engine.gs_mask[self.engine.node_index[current]]
             ):
                 continue
-            for neighbor, cost in self.global_lsdb[node].get(current, {}).items():
+            for neighbor, cost in sorted(
+                self.global_lsdb[node].get(current, {}).items()
+            ):
                 candidate = distance + cost
                 if candidate < distances.get(neighbor, float('inf')):
                     distances[neighbor] = candidate
@@ -170,7 +172,7 @@ class LinkStateRouter(Router):
     def _flood(self, current_node, origin, seq, links, exclude, t):
         if self.engine.is_ground_station(current_node) and current_node != origin:
             return
-        for neighbor in self.active_links[current_node]:
+        for neighbor in sorted(self.active_links[current_node]):
             if neighbor == exclude:
                 continue
             d = self.engine.link_delay(current_node, neighbor, self.engine.current_time)

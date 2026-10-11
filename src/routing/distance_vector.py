@@ -16,7 +16,7 @@ class DistanceVectorRouter(Router):
         self.bytes_per_dv_header = config['routing'].get('bytes_per_dv_header', 24)
         self.bytes_per_dv_entry = config['routing'].get('bytes_per_dv_entry', 8)
         self.poison_reverse = config['routing'].get('dv_poison_reverse', True)
-        self.random = random.Random(config['simulation'].get('random_seed', 42))
+        self.seed = config['simulation'].get('random_seed', 42)
         self.reset()
 
     def reset(self):
@@ -39,14 +39,14 @@ class DistanceVectorRouter(Router):
         """Materialize the legacy node/destination view for inspection."""
         result = {}
         node_index = self.engine.node_index
-        for node, row in self.cost.items():
+        for node, row in sorted(self.cost.items()):
             result[node] = {
                 dst: (
                     float(row[dst_idx]),
                     self.engine.nodes[int(self.nxt[node][dst_idx])]
                     if self.nxt[node][dst_idx] >= 0 else None,
                 )
-                for dst, dst_idx in node_index.items()
+                for dst, dst_idx in sorted(node_index.items())
             }
         return result
 
@@ -56,14 +56,14 @@ class DistanceVectorRouter(Router):
         self._infinity_vec = np.full(
             self.engine.n_nodes, self.infinity, dtype=float
         )
-        for node in self.engine.node_index:
+        for node in sorted(self.engine.node_index):
             self._ensure_node(node)
 
     def end_batch(self):
         dirty_nodes = self._batch_dirty_nodes
         self._batch_dirty_nodes = set()
         self._batching = False
-        for node in dirty_nodes:
+        for node in sorted(dirty_nodes):
             self._add_active_node(node)
             self._recompute_dv(node, send=False)
             self._send_updates(node)
@@ -158,7 +158,9 @@ class DistanceVectorRouter(Router):
         if node not in self.active_nodes:
             self.active_nodes.add(node)
             self._ensure_node(node)
-            jitter = self.random.uniform(0, 0.1 * self.update_interval)
+            jitter = random.Random(f"{self.seed}:{node}").uniform(
+                0, 0.1 * self.update_interval
+            )
             self._schedule_periodic(node, jitter)
 
     def _schedule_periodic(self, node, delay=None):
@@ -186,7 +188,7 @@ class DistanceVectorRouter(Router):
     def _recompute_dv(self, node, send=True):
         self._ensure_node(node)
         own_idx = self.engine.node_index[node]
-        neighbors = list(self.link_cost[node].items())
+        neighbors = sorted(self.link_cost[node].items())
         if neighbors:
             neighbor_indices = np.fromiter(
                 (neighbor_idx for neighbor_idx, _ in neighbors),
@@ -238,7 +240,7 @@ class DistanceVectorRouter(Router):
             return
         self._ensure_node(node)
         own_idx = self.engine.node_index[node]
-        for neighbor_idx in list(self.link_cost[node]):
+        for neighbor_idx in sorted(self.link_cost[node]):
             neighbor = self.engine.nodes[neighbor_idx]
             # Check if link is physically up at send time
             d = self.engine.link_delay(node, neighbor, self.engine.current_time)
