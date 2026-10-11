@@ -1,0 +1,71 @@
+# Visualization export schema
+- `meta.json.config`: flattened configuration values used for this run.
+- `meta.json.seed`: deterministic simulation seed.
+- `meta.json.duration_s`: simulation duration in seconds.
+- `meta.json.step_s`: simulator timestep in seconds.
+- `meta.json.nodes`: fixed-order satellite and ground-station metadata.
+- `meta.json.node_order`: node IDs in the index order used by all arrays.
+- `meta.json.nodes[].id`: simulator node ID.
+- `meta.json.nodes[].type`: `satellite` or `ground_station`.
+- `meta.json.nodes[].plane`: zero-based satellite orbital plane.
+- `meta.json.nodes[].index_in_plane`: zero-based satellite slot in its plane.
+- `meta.json.nodes[].name`: ground-station display name.
+- `meta.json.nodes[].lat`: ground-station latitude in degrees.
+- `meta.json.nodes[].lon`: ground-station longitude in degrees.
+- `meta.json.routers`: router row names.
+- `meta.json.router_colours`: fixed router and oracle colours.
+- `meta.json.provisional`: marks results as provisional research output.
+- `meta.json.generated_at`: UTC export generation timestamp.
+- `meta.json.not_measured`: outputs not measured by this simulator.
+- `positions.json.times_s`: sampled position times in seconds.
+- `positions.json.frames_km`: flattened xyz positions in node order; interpolate between frames.
+- `positions.json.note`: browser interpolation instruction.
+- `links.json.initial_link_ids`: IDs of links present at t=0.
+- `links.json.links`: link table with endpoint node IDs and link type.
+- `links.json.links[].a`: lower endpoint node index.
+- `links.json.links[].b`: higher endpoint node index.
+- `links.json.links[].type`: `intra`, `inter`, or `gsl`.
+- `links.json.events`: timestamped up/down/cost changes with link IDs.
+- `links.json.events[].t`: event time in seconds.
+- `links.json.events[].a`: first endpoint node index.
+- `links.json.events[].b`: second endpoint node index.
+- `links.json.events[].type`: link event kind (`up`, `down`, or `cost`).
+- `links.json.events[].delay_ms`: advertised event delay in milliseconds, or null.
+- `links.json.events[].link_id`: link-table index.
+- `links.json.delay_times_s`: times corresponding to sampled delay frames.
+- `links.json.delay_ms`: per-frame delays aligned with `links` (null means down).
+- `links.json.remaining_lifetime`: capped seconds and cap flags per link/frame.
+- `links.json.look_ahead_cap_s`: lifetime cap used for export.
+- `routes.json.pairs`: all unordered ground-station pairs and node IDs.
+- `routes.json.routers`: router order used by each sample row.
+- `routes.json.times_s`: route sample timestamps.
+- `routes.json.samples`: per-second paths, failures, classes, and actual delays.
+- `routes.json.samples[t][pair].paths`: node-index paths in router order, or null.
+- `routes.json.samples[t][pair].last_failure`: per-router failure reason or null.
+- `routes.json.samples[t][pair].classes`: per-router outcome class.
+- `routes.json.samples[t][pair].delay_ms`: actual snapshot path delay per router, or null.
+- `routes.json.state`: per-second cumulative router counters.
+- `routes.json.state.times_s`: times for the counter arrays.
+- `routes.json.state.ls_spf_runs`: measured LS SPF runs.
+- `routes.json.state.ls_control_messages`: cumulative LS control messages.
+- `routes.json.state.dv_control_messages`: cumulative DV control messages.
+- `routes.json.state.sapr_control_messages`: cumulative SAPR control messages.
+- `routes.json.state.ls_dropped`: cumulative LS dropped messages.
+- `routes.json.state.dv_dropped`: cumulative DV dropped messages.
+- `routes.json.state.sapr_dropped`: cumulative SAPR dropped messages.
+- `events.json.events`: link, route-change, and class-transition events.
+- `events.json.events[].t`: event time in seconds.
+- `events.json.events[].type`: link event, route change, or class transition.
+- `events.json.events[].router`: router name for route/class events.
+- `events.json.events[].pair`: pair index for route/class events.
+- `events.json.events[].old_path`: previous node-index route, or null.
+- `events.json.events[].new_path`: new node-index route, or null.
+- `events.json.events[].old_class`: previous classification.
+- `events.json.events[].new_class`: new classification.
+- `summary.json.headers`: summary table column labels.
+- `summary.json.rows`: summary table rows from baseline aggregation helpers.
+- `summary.json.per_pair`: per-pair class totals, unreachable counts, and mean delay.
+- `summary.json.per_pair.<pair>.Oracle`: oracle metrics for the pair.
+- `summary.json.per_pair.<pair>.LinkState`: LinkState metrics for the pair.
+- `summary.json.per_pair.<pair>.DistanceVector`: DistanceVector metrics for the pair.
+- `summary.json.per_pair.<pair>.SAPR`: SAPR metrics for the pair.

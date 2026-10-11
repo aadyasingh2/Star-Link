@@ -176,7 +176,7 @@ class TopologySeries:
         self._cache[t] = G
         return G
         
-    def link_remaining_lifetime(self, u, v, current_t):
+    def link_remaining_lifetime(self, u, v, current_t, max_lifetime_s=None):
         """
         Returns how many seconds from current_t the link (u,v) will remain continuously available.
         Uses cached snapshots or generates them as it looks ahead.
@@ -187,7 +187,13 @@ class TopologySeries:
             
         lifetime = 0.0
         t += self.dt
-        while t <= self.duration:
+        while (
+            t <= self.duration
+            and (
+                max_lifetime_s is None
+                or lifetime < max_lifetime_s
+            )
+        ):
             G = self.get_snapshot(t)
             if not G.has_edge(u, v):
                 break
