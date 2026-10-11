@@ -49,16 +49,29 @@ The routing code sorts order-sensitive iteration and derives Distance Vector jit
 
 ## 5. Results
 
-### Overall comparison
+### Table 1. Three-pair baseline results
 
-| Router | Correct % | Stale working % | Loop % | Blackhole % | Near-optimal % | Mean delay (ms) | P99 delay (ms) | Mean stretch | Route changes/min | Measured messages | Control bytes | Dropped | SPF runs | Cost events | Boot messages |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Oracle | 100.00 | 0.00 | 0.00 | 0.00 | 100.00 | 47.680 | 60.304 | 1.000 | 3.800 | 0 | 0 | 0 | — | 0 | 0 |
-| Link State | 54.17 | 44.50 | 0.00 | 1.33 | 80.89 | 48.113 | 60.638 | 1.009 | 2.400 | 731,266 | 37,246,856 | 0 | 3,595 | 0 | 620,426 |
-| Distance Vector | 53.50 | 45.67 | 0.00 | 0.83 | 79.89 | 48.162 | 60.613 | 1.010 | 3.800 | 367,503 | 1,073,615,616 | 0 | — | 0 | 57,650 |
-| SAPR | 32.56 | 67.44 | 0.00 | 0.00 | 72.39 | 48.605 | 61.753 | 1.018 | 1.900 | 0 | 0 | 0 | — | 0 | 0 |
+| Router | %correct | %stale_working | %loop | %blackhole | %near_optimal | mean actual delay ms | p99 actual delay ms | mean stretch vs oracle | Route changes/min (summed over the 3 pairs) | measured control messages | control bytes | dropped messages | SPF runs | cost events generated | boot messages | Avg route changes/min/pair |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Oracle | 100.00 | 0.00 | 0.00 | 0.00 | 100.00 | 47.680 | 60.304 | 1.000 | 3.800 | 0 | 0 | 0 | - | 0 | 0 | 1.267 |
+| Link State | 54.17 | 44.50 | 0.00 | 1.33 | 80.89 | 48.113 | 60.638 | 1.009 | 2.400 | 731,266 | 37,246,856 | 0 | 3,595 | 0 | 620,426 | 0.800 |
+| Distance Vector | 53.50 | 45.67 | 0.00 | 0.83 | 79.89 | 48.162 | 60.613 | 1.010 | 3.800 | 367,503 | 1,073,615,616 | 0 | - | 0 | 57,650 | 1.267 |
+| SAPR | 32.56 | 67.44 | 0.00 | 0.00 | 72.39 | 48.605 | 61.753 | 1.018 | 1.900 | 0 | 0 | 0 | - | 0 | 0 | 0.633 |
 
-Source: `results/comparison_600s.txt` and its CSV summary. Boot-message counters are separate from measured-run control messages.
+Source: `results/comparison_600s.csv`. Route changes/min is summed over pairs; the final column is the per-pair average rounded to three decimals. Boot-message counters are separate from measured-run control messages.
+
+### Table 2. 10-pair results
+
+| Router | %correct | %stale_working | %loop | %blackhole | %near_optimal | mean actual delay ms | p99 actual delay ms | mean stretch vs oracle | Route changes/min (summed over the 10 pairs) | measured control messages | control bytes | dropped messages | SPF runs | cost events generated | boot messages | Avg route changes/min/pair |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Oracle | 100.00 | 0.00 | 0.00 | 0.00 | 100.00 | 50.176 | 108.225 | 1.000 | 12.700 | 0 | 0 | 0 | - | 0 | 0 | 1.270 |
+| Link State | 49.67 | 49.12 | 0.00 | 1.22 | 77.72 | 50.664 | 109.541 | 1.012 | 8.900 | 731,266 | 37,246,856 | 0 | 10,214 | 0 | 620,426 | 0.890 |
+| Distance Vector | 49.00 | 49.70 | 0.18 | 1.12 | 76.63 | 50.666 | 109.650 | 1.016 | 14.000 | 367,503 | 1,073,615,616 | 0 | - | 0 | 57,650 | 1.400 |
+| SAPR | 39.58 | 60.42 | 0.00 | 0.00 | 68.75 | 51.281 | 109.538 | 1.022 | 6.400 | 0 | 0 | 0 | - | 0 | 0 | 0.640 |
+
+Table 2 is generated from `web/public/data/summary.json`; it uses the same metric columns as Table 1. The route-change heading gives the pair count for each table.
+
+**Scope of the numbers.** Table 1 and the per-pair table above use three pairs: Chennai-London, Chennai-Sydney, and New York-Tokyo. The web app's Analytics tab uses all ten station pairs from the same seed, the same 600-second run, and the same simulated network. Control messages, control bytes, dropped messages, and boot messages are identical in both outputs because those simulation counters do not depend on which pairs are evaluated. Router ordering is the same for %near_optimal and %blackhole, including ties. For route changes/min, Oracle and Distance Vector tie in the three-pair data, while Distance Vector is higher than Oracle in the ten-pair data.
 
 ### Per-pair results
 
@@ -110,6 +123,8 @@ SAPR reduces route changes to 1.9 per minute, compared with 2.4 for Link State a
 The reactive routers have low but nonzero blackhole rates: 1.33% for Link State and 0.83% for Distance Vector. SAPR's zero loop and blackhole values are expected from the implementation's use of the true topology at route-query time and should not be interpreted as a deployed-system reliability result.
 
 Distance Vector sent fewer measured messages than Link State (367,503 versus 731,266), but its modelled byte count was much larger (about 28.8 times Link State) because vectors carry destination entries. Link State also has a much larger separate boot-message count (620,426 versus 57,650). SAPR's zero message and byte counts depend on assuming perfect local prediction with no ephemeris distribution cost.
+
+Distance Vector produced transient loops on London-Tokyo in the 10-pair data: 11 loop samples, contributing to the 0.18% aggregate loop rate.
 
 The run reports zero generated cost events for the 2 ms threshold. In a separate first-60-second check documented with the simulation results, the largest persistent-link delay change was 0 ms for intra-plane links, 0.186 ms for inter-plane links, and 1.060 ms for ground links. This supports the absence of threshold-crossing cost events in that checked window; the 600-second report's zero cost-event count is the result for the full run.
 

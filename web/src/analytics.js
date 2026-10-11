@@ -178,6 +178,7 @@ function chartBase(legend = {}) {
 function createHeadlineTable(summary) {
   const table = document.querySelector('#headline-table');
   const { headers, rows } = summary;
+  const changesHeader = 'Route changes/min (summed over the 10 pairs)';
   const bestByColumn = headers.map((header, column) => {
     if (column === 0) return null;
     const values = rows.map((row) => numeric(row[column])).filter((value) => value !== null);
@@ -185,7 +186,9 @@ function createHeadlineTable(summary) {
     const maximize = header.startsWith('%');
     return maximize ? Math.max(...values) : Math.min(...values);
   });
-  table.innerHTML = `<thead><tr>${headers.map((header) => `<th>${header}</th>`).join('')}</tr></thead><tbody>${
+  table.innerHTML = `<thead><tr>${headers.map((header) => header === 'route changes/min'
+    ? `<th title="${changesHeader}">${changesHeader}</th>`
+    : `<th>${header}</th>`).join('')}</tr></thead><tbody>${
     rows.map((row) => `<tr>${row.map((value, column) => {
       const number = numeric(value);
       const best = column > 0 && number !== null && number === bestByColumn[column];

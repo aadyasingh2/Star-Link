@@ -153,6 +153,9 @@ Every second, for each ground-station pair, each router's route is checked again
 
 Path delay is always computed from the true link delays, never from advertised costs. `%near_optimal` counts valid paths within `evaluation.near_optimal_tolerance_ms` of the oracle delay.
 
+The report's Table 1 uses three ground-station pairs; the Analytics view uses all ten pairs from the same seed, 600 s run, and simulated network.
+Route changes/min is summed over evaluated pairs; control messages, bytes, dropped messages, and boot messages are network-wide counters independent of pair count.
+
 ## Reproducibility
 
 The seed is fixed (`simulation.random_seed`), iteration over nodes and edges is sorted, and DV jitter is drawn per node, so runs do not depend on Python's hash seed. Two 120 s runs under different `PYTHONHASHSEED` values produced identical output CSVs.
